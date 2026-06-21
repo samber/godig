@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	pkggodev "github.com/samber/go-pkggodev-client"
@@ -55,6 +56,8 @@ func init() {
 	pf.String("log-level", "error", "log level: debug|info|warn|error|off (logs go to stderr)")
 
 	viper.SetEnvPrefix("GODIG")
+	// Map dashed flag names to underscored env vars (e.g. base-url -> GODIG_BASE_URL).
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 	_ = viper.BindPFlag("base-url", pf.Lookup("base-url"))
 	_ = viper.BindPFlag("timeout", pf.Lookup("timeout"))

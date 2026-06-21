@@ -19,9 +19,9 @@ run:
 # Runs unit tests and the integration suite under ./tests (which builds the
 # binary and drives it against a fake pkg.go.dev server).
 test:
-	go test -race -v ${MODULES} ./...
+	go test -race -v ./...
 watch-test:
-	reflex -t 50ms -s -- sh -c 'gotest -race -v ${MODULES} ./...'
+	reflex -t 50ms -s -- sh -c 'gotest -race -v ./...'
 
 # Integration tests only: the end-to-end suite under ./tests.
 integration:
@@ -33,7 +33,7 @@ watch-bench:
 	reflex -t 50ms -s -- sh -c 'go test -benchmem -count 3 -bench ${MODULES} ./...'
 
 coverage:
-	go test -v -coverprofile=cover.out -covermode=atomic ${MODULES} ./...
+	go test -v -coverprofile=cover.out -covermode=atomic ./...
 	go tool cover -html=cover.out -o cover.html
 
 tools:

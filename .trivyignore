@@ -1,0 +1,3 @@
+# Trivy ignore file (referenced by .github/workflows/security.yml).
+# List CVE / vulnerability IDs to ignore, one per line, e.g.:
+#   CVE-2024-xxxxx

@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/samber/godig/internal/mcpserver"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func init() {
@@ -16,12 +18,14 @@ func init() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			transport, _ := cmd.Flags().GetString("transport")
 			addr, _ := cmd.Flags().GetString("addr")
+			cacheTTL := viper.GetDuration("cache-ttl")
+			cacheSize := viper.GetInt("cache-size")
 
 			d, err := newDispatcher()
 			if err != nil {
 				return err
 			}
-			srv := mcpserver.New("godig", version, d)
+			srv := mcpserver.New("godig", version, d, mcpserver.WithCache(cacheTTL, cacheSize))
 
 			switch transport {
 			case "stdio":
@@ -38,9 +42,16 @@ func init() {
 
 	cmd.Flags().StringP("transport", "t", "stdio", "MCP transport: stdio or http")
 	cmd.Flags().String("addr", ":8080", "listen address for the http transport")
+	cmd.Flags().Duration("cache-ttl", 60*time.Minute, "in-memory result cache TTL (0 disables caching)")
+	cmd.Flags().Int("cache-size", 100_000, "in-memory result cache capacity, in entries")
 	_ = cmd.RegisterFlagCompletionFunc("transport", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		return []string{"stdio", "http"}, cobra.ShellCompDirectiveNoFileComp
 	})
+
+	// Bind to viper so the cache can also be configured via env
+	// (GODIG_CACHE_TTL, GODIG_CACHE_SIZE), consistent with the root flags.
+	_ = viper.BindPFlag("cache-ttl", cmd.Flags().Lookup("cache-ttl"))
+	_ = viper.BindPFlag("cache-size", cmd.Flags().Lookup("cache-size"))
 
 	rootCmd.AddCommand(cmd)
 }
