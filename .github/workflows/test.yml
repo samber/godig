@@ -1,0 +1,47 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go:
+          - "1.25"
+          - "1.26"
+          - "stable"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Build
+        run: make build
+
+      - name: Unit tests
+        run: make test
+
+      - name: Integration tests
+        run: make integration
+
+      - name: Test coverage
+        run: make coverage
+        if: matrix.go == 'stable'
+
+      - name: Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unittests
+          verbose: true
+        if: matrix.go == 'stable'
