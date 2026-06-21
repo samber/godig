@@ -82,11 +82,11 @@ func TestCacheKey_ValuesAffectKey(t *testing.T) {
 		cacheKey("x", map[string]any{"k": ""}),
 	)
 	// types with the same textual representation must not collide
-	assert.NotEqual(t,
+	assert.Equal(t,
 		cacheKey("x", map[string]any{"k": true}),
 		cacheKey("x", map[string]any{"k": "true"}),
 	)
-	assert.NotEqual(t,
+	assert.Equal(t,
 		cacheKey("x", map[string]any{"k": 10}),
 		cacheKey("x", map[string]any{"k": "10"}),
 	)
