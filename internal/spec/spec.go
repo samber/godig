@@ -84,14 +84,14 @@ func GroupShort(group string) string {
 var Operations = []Operation{
 	{
 		Name:    "overview",
-		Short:   "One-call compact summary of a package: metadata, latest + recent versions, license types and vulnerabilities. Start here.",
+		Short:   "One-call compact summary of a Go package: metadata, latest + recent versions, license types and vulnerabilities. Start here.",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pVersion},
 	},
 	{
 		Name:    "search",
-		Short:   "Find packages by query (optionally restricted to ones exporting a symbol).",
+		Short:   "Find Go packages by query (optionally restricted to ones exporting a symbol).",
 		Arg:     "query",
 		ArgDesc: "Search query matching packages",
 		Params: []Param{
@@ -103,7 +103,7 @@ var Operations = []Operation{
 	{
 		Group:   groupPackage,
 		Name:    "info",
-		Short:   "Package metadata (name, synopsis, latest version, module).",
+		Short:   "Go package metadata (name, synopsis, latest version, module).",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params: []Param{
@@ -114,7 +114,7 @@ var Operations = []Operation{
 	{
 		Group:   groupPackage,
 		Name:    "doc",
-		Short:   "Full package documentation. LARGE — fetch only when you need API details.",
+		Short:   "Full Go package documentation. LARGE — fetch only when you need API details.",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params: []Param{
@@ -125,7 +125,7 @@ var Operations = []Operation{
 	{
 		Group:   groupPackage,
 		Name:    "examples",
-		Short:   "Package documentation including runnable examples. LARGE.",
+		Short:   "Go package documentation including runnable examples. LARGE.",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pModule, pVersion, pGOOS, pGOARCH},
@@ -133,7 +133,7 @@ var Operations = []Operation{
 	{
 		Group:   groupPackage,
 		Name:    "licenses",
-		Short:   "Package license files (full text). LARGE — for SPDX types use overview.",
+		Short:   "Go package license files (full text). LARGE — for SPDX types use overview.",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pModule, pVersion},
@@ -142,7 +142,7 @@ var Operations = []Operation{
 	{
 		Group:   groupModule,
 		Name:    "info",
-		Short:   "Module metadata (latest version, repo URL, commit time).",
+		Short:   "Go module metadata (latest version, repo URL, commit time).",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pVersion},
@@ -150,7 +150,7 @@ var Operations = []Operation{
 	{
 		Group:   groupModule,
 		Name:    "licenses",
-		Short:   "Module license files (full text). LARGE — for SPDX types use overview.",
+		Short:   "Go module license files (full text). LARGE — for SPDX types use overview.",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pVersion},
@@ -158,42 +158,42 @@ var Operations = []Operation{
 	{
 		Group:   groupModule,
 		Name:    "readme",
-		Short:   "Module README (full Markdown). LARGE.",
+		Short:   "Go module README (full Markdown). LARGE.",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pVersion},
 	},
 	{
 		Name:    "imported-by",
-		Short:   "List packages that import this package (can be long; use --limit).",
+		Short:   "List Go packages that import this package (can be long; use --limit).",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pModule, pVersion, pLimit, pFilter},
 	},
 	{
 		Name:    "packages",
-		Short:   "List the packages contained in a module.",
+		Short:   "List the Go packages contained in a module.",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pVersion, pLimit, pFilter},
 	},
 	{
 		Name:    "versions",
-		Short:   "List a module's versions, newest first (can be long; use --limit).",
+		Short:   "List a Go module's versions, newest first (can be long; use --limit).",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pLimit, pFilter},
 	},
 	{
 		Name:    "symbols",
-		Short:   "List a package's exported symbols (types, funcs, methods).",
+		Short:   "List a Go package's exported symbols (types, funcs, methods).",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pModule, pVersion, pGOOS, pGOARCH, pLimit, pFilter},
 	},
 	{
 		Name:    "vulns",
-		Short:   "Known vulnerabilities of a module or package.",
+		Short:   "Known vulnerabilities of a Go module or package.",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pModule, pVersion, pLimit, pFilter},

@@ -13,6 +13,9 @@
 
 Its commands and MCP tools are built from a small hand-written catalog ([`internal/spec`](internal/spec)) and call the typed [`go-pkggodev-client`](https://github.com/samber/go-pkggodev-client). All operations are read-only and need no authentication.
 
+> [!TIP]
+> Looking for a **Go library** instead of a CLI? Use [`samber/go-pkggodev-client`](https://github.com/samber/go-pkggodev-client) — the typed pkg.go.dev client that powers `godig`.
+
 ## 🚀 Install
 
 ```sh
