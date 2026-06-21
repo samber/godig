@@ -62,9 +62,8 @@ func (c *cachingInvoker) Invoke(ctx context.Context, name string, args map[strin
 // cheap to build on every tool call.
 //
 // 0x1f (unit separator) delimits fields and 0x1e (record separator) splits each
-// key from its value; both are control characters that never occur in the
-// argument names or in pkg.go.dev paths, versions and queries, so distinct
-// argument sets cannot collide on the same key.
+// key from its value. Values are type-tagged (and strings length-prefixed) so
+// distinct argument sets cannot collide even if separators occur in values.
 func cacheKey(name string, args map[string]any) string {
 	if len(args) == 0 {
 		return name
