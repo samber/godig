@@ -5,15 +5,36 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/samber/godig/internal/dispatch"
 )
 
-// handler adapts the dispatcher to MCP tool handlers.
+// handler adapts the dispatcher (or a caching decorator around it) to MCP tool
+// handlers.
 type handler struct {
-	d *dispatch.Dispatcher
+	d invoker
+}
+
+// Option configures the MCP server built by New.
+type Option func(*config)
+
+// config holds the resolved options for New.
+type config struct {
+	cacheTTL  time.Duration
+	cacheSize int
+}
+
+// WithCache enables an in-memory result cache in front of the dispatcher. A
+// ttl <= 0 (or size <= 0) leaves caching disabled. Only MCP tool calls are
+// cached; the CLI invokes the dispatcher directly.
+func WithCache(ttl time.Duration, size int) Option {
+	return func(c *config) {
+		c.cacheTTL = ttl
+		c.cacheSize = size
+	}
 }
 
 // handle returns an MCP tool handler bound to the given operationId.
@@ -33,10 +54,21 @@ func (h *handler) handle(opID string) server.ToolHandlerFunc {
 	}
 }
 
-// New builds an MCP server with all pkg.go.dev tools registered.
-func New(name, version string, d *dispatch.Dispatcher) *server.MCPServer {
+// New builds an MCP server with all pkg.go.dev tools registered. By default tool
+// calls go straight to the dispatcher; pass WithCache to memoise results.
+func New(name, version string, d *dispatch.Dispatcher, opts ...Option) *server.MCPServer {
+	var cfg config
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	var inv invoker = d
+	if cfg.cacheTTL > 0 && cfg.cacheSize > 0 {
+		inv = newCachingInvoker(d, cfg.cacheTTL, cfg.cacheSize)
+	}
+
 	s := server.NewMCPServer(name, version, server.WithToolCapabilities(false))
-	registerTools(s, &handler{d: d})
+	registerTools(s, &handler{d: inv})
 	return s
 }
 
