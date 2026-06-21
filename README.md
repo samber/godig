@@ -133,23 +133,6 @@ claude mcp add --transport http pkg-go-dev https://godig.samber.dev/mcp
 { "mcpServers": { "pkg-go-dev": { "type": "http", "url": "https://godig.samber.dev/mcp" } } }
 ```
 
-### Result cache
-
-Because the MCP server is a long-running process and pkg.go.dev data is read-only, successful tool results are cached in memory (LRU + TTL, powered by [`samber/hot`](https://github.com/samber/hot)). Repeated tool calls for the same package are served from memory until the entry expires; errors are never cached. The cache is exclusive to the MCP server — the CLI is never cached.
-
-```sh
-# Defaults: 60-minute TTL, 100,000 entries
-godig mcp
-# Tune or disable (ttl=0 turns the cache off)
-godig mcp --cache-ttl 30m --cache-size 50000
-GODIG_CACHE_TTL=0 godig mcp
-```
-
-| Flag           | Env               | Default | Description                                |
-| -------------- | ----------------- | ------- | ------------------------------------------ |
-| `--cache-ttl`  | `GODIG_CACHE_TTL`  | `60m`   | Result cache TTL; `0` disables the cache.  |
-| `--cache-size` | `GODIG_CACHE_SIZE` | `100000`| Result cache capacity, in entries.         |
-
 ## 🥷 Skill
 
 A companion AI-agent skill, **`golang-pkg-go-dev`**, lives in [samber/cc-skills-golang](https://github.com/samber/cc-skills-golang). It covers both setup (registering the MCP server) and usage workflows (intent → command/tool), and triggers when exploring Go packages: docs, versions, importers, vulnerabilities.
