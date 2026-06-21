@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeInvoker records how many times Invoke is called per (name,args) and
-// returns a configurable value/error.
+// fakeInvoker records how many times Invoke is called and returns a configurable
+// value/error.
 type fakeInvoker struct {
 	calls int
 	val   any
