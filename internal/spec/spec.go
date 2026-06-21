@@ -1,0 +1,201 @@
+// Package spec is the hand-written catalog of pkg.go.dev operations exposed by
+// godig's CLI and MCP server. Commands and tools are built from this table and
+// call the typed go-pkggodev-client.
+//
+// An operation's Key (Group+"-"+Name, or just Name) is used as the MCP tool
+// name and the dispatch key. Grouped operations become CLI subcommands of their
+// group (e.g. Group "package", Name "info" -> `godig package info`).
+package spec
+
+// ParamType is the kind of an optional query parameter.
+type ParamType string
+
+// String, Int and Bool are the supported parameter kinds.
+const (
+	String ParamType = "string"
+	Int    ParamType = "int"
+	Bool   ParamType = "bool"
+)
+
+// Command group names (parents with subcommands).
+const (
+	groupPackage = "package"
+	groupModule  = "module"
+)
+
+// Param describes one optional query parameter of an operation.
+type Param struct {
+	Name string
+	Type ParamType
+	Desc string
+}
+
+// Operation describes one pkg.go.dev operation.
+type Operation struct {
+	Group   string // "" for a top-level command, otherwise the parent command
+	Name    string // command/subcommand name
+	Short   string
+	Arg     string // required positional argument name ("" = none), e.g. "path" or "query"
+	ArgDesc string // description of the positional argument
+	Params  []Param
+}
+
+// Key is the dispatch key and MCP tool name (e.g. "package-info", "search").
+func (o Operation) Key() string {
+	if o.Group == "" {
+		return o.Name
+	}
+	return o.Group + "-" + o.Name
+}
+
+// Common parameter definitions, reused across operations.
+var (
+	pVersion = Param{"version", String, "Module version (semver, 'latest', 'master' or 'main')"}
+	pModule  = Param{"module", String, "Module path"}
+	pLimit   = Param{"limit", Int, "Maximum number of items to return"}
+	pFilter  = Param{"filter", String, "Filter results with a Go boolean expression (see pkg.go.dev API docs)"}
+	pGOOS    = Param{"goos", String, "GOOS documentation build context"}
+	pGOARCH  = Param{"goarch", String, "GOARCH documentation build context"}
+)
+
+const (
+	argName = "path"                          // common positional argument name
+	argDesc = "Package or module import path" // common positional argument description
+)
+
+// GroupShort returns the short description of a parent command.
+func GroupShort(group string) string {
+	switch group {
+	case groupPackage:
+		return "Inspect a package (info, examples, licenses, doc)"
+	case groupModule:
+		return "Inspect a module (info, licenses, readme)"
+	default:
+		return group
+	}
+}
+
+// Operations is the catalog consumed by the CLI and the MCP server.
+//
+// Token-efficiency note for agents: `overview` answers most "what is X / is it
+// maintained / vulnerable / latest version" questions in ONE call with a compact
+// payload. Reach for `doc`/`examples`/`module readme`/`licenses` only when the
+// full (large) text is actually needed.
+var Operations = []Operation{
+	{
+		Name:    "overview",
+		Short:   "One-call compact summary of a package: metadata, latest + recent versions, license types and vulnerabilities. Start here.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pVersion},
+	},
+	{
+		Name:    "search",
+		Short:   "Find packages by query (optionally restricted to ones exporting a symbol).",
+		Arg:     "query",
+		ArgDesc: "Search query matching packages",
+		Params: []Param{
+			{"symbol", String, "Restrict results to packages exporting this symbol"},
+			pLimit, pFilter,
+		},
+	},
+	// package subcommands
+	{
+		Group:   groupPackage,
+		Name:    "info",
+		Short:   "Package metadata (name, synopsis, latest version, module).",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params: []Param{
+			pModule, pVersion,
+			{"imports", Bool, "Include the packages this one imports"},
+		},
+	},
+	{
+		Group:   groupPackage,
+		Name:    "doc",
+		Short:   "Full package documentation. LARGE — fetch only when you need API details.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params: []Param{
+			{"format", String, "Documentation format: md|text|html|markdown"},
+			pModule, pVersion, pGOOS, pGOARCH,
+		},
+	},
+	{
+		Group:   groupPackage,
+		Name:    "examples",
+		Short:   "Package documentation including runnable examples. LARGE.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pModule, pVersion, pGOOS, pGOARCH},
+	},
+	{
+		Group:   groupPackage,
+		Name:    "licenses",
+		Short:   "Package license files (full text). LARGE — for SPDX types use overview.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pModule, pVersion},
+	},
+	// module subcommands
+	{
+		Group:   groupModule,
+		Name:    "info",
+		Short:   "Module metadata (latest version, repo URL, commit time).",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pVersion},
+	},
+	{
+		Group:   groupModule,
+		Name:    "licenses",
+		Short:   "Module license files (full text). LARGE — for SPDX types use overview.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pVersion},
+	},
+	{
+		Group:   groupModule,
+		Name:    "readme",
+		Short:   "Module README (full Markdown). LARGE.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pVersion},
+	},
+	{
+		Name:    "imported-by",
+		Short:   "List packages that import this package (can be long; use --limit).",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pModule, pVersion, pLimit, pFilter},
+	},
+	{
+		Name:    "packages",
+		Short:   "List the packages contained in a module.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pVersion, pLimit, pFilter},
+	},
+	{
+		Name:    "versions",
+		Short:   "List a module's versions, newest first (can be long; use --limit).",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pLimit, pFilter},
+	},
+	{
+		Name:    "symbols",
+		Short:   "List a package's exported symbols (types, funcs, methods).",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pModule, pVersion, pGOOS, pGOARCH, pLimit, pFilter},
+	},
+	{
+		Name:    "vulns",
+		Short:   "Known vulnerabilities of a module or package.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pModule, pVersion, pLimit, pFilter},
+	},
+}

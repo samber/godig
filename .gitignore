@@ -1,0 +1,16 @@
+
+# Binaries
+/godig
+/bin/
+/dist/
+*.exe
+
+# Test / coverage
+*.test
+*.out
+coverage.txt
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
