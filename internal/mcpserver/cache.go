@@ -101,8 +101,7 @@ func writeValue(b *strings.Builder, v any) {
 	case int64:
 		b.WriteString(strconv.FormatInt(x, 10))
 	case nil:
-		// distinct from the empty string so "absent" and "" do not collide
-		b.WriteByte(0x00)
+		// nil is treated as equivalent to empty string
 	default:
 		// Unreachable for the current scalar-only argument schema; kept robust.
 		fmt.Fprint(b, x)

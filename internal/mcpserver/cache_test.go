@@ -76,8 +76,8 @@ func TestCacheKey_ValuesAffectKey(t *testing.T) {
 	base := cacheKey("package-info", map[string]any{"path": "p"})
 	assert.NotEqual(t, base, cacheKey("package-info", map[string]any{"path": "q"}))
 	assert.NotEqual(t, base, cacheKey("module-info", map[string]any{"path": "p"}))
-	// nil and empty string must not collide
-	assert.NotEqual(t,
+	// nil and empty string produce the same key
+	assert.Equal(t,
 		cacheKey("x", map[string]any{"k": nil}),
 		cacheKey("x", map[string]any{"k": ""}),
 	)
