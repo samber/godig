@@ -43,7 +43,12 @@ godig search "result option monad" --limit 5
 godig package info github.com/samber/ro
 godig package doc github.com/samber/ro --format md
 godig package examples github.com/samber/ro
+godig package examples github.com/samber/ro --symbol Map   # examples for one symbol only
 godig package licenses github.com/samber/ro
+
+# One symbol's signature + doc (token-efficient vs the full package doc)
+godig symbol github.com/samber/ro Map
+godig symbol github.com/samber/mo Either.ForEach --examples
 
 # Module facets
 godig module info github.com/samber/ro
@@ -52,6 +57,7 @@ godig module licenses github.com/samber/ro
 
 # Lists (auto-paginated; --limit to cap, -o md for a Markdown table)
 godig versions github.com/samber/ro -o md
+godig major-versions github.com/samber/do        # v1, v2, v3 ... (separate modules)
 godig packages github.com/samber/ro
 godig imported-by github.com/samber/ro --limit 20
 godig symbols github.com/samber/ro
@@ -79,13 +85,15 @@ All flags can also be set via `GODIG_`-prefixed environment variables.
 | `godig search <query> [--symbol <s>]`     | Search packages and symbols          |
 | `godig package info <path>`               | Package metadata                     |
 | `godig package doc <path> --format <fmt>` | Package documentation (md/text/html) |
-| `godig package examples <path>`           | Documentation with examples          |
+| `godig package examples <path>`           | Documentation with examples (`--symbol` to scope) |
 | `godig package licenses <path>`           | Package licenses                     |
+| `godig symbol <path> <symbol>`            | One symbol's signature + doc         |
 | `godig module info <path>`                | Module metadata                      |
 | `godig module licenses <path>`            | Module licenses                      |
 | `godig module readme <path>`              | Module README                        |
 | `godig packages <module>`                 | List a module's packages             |
 | `godig versions <module>`                 | List module versions                 |
+| `godig major-versions <module>`           | List major versions (v1, v2, v3 ...) |
 | `godig imported-by <path>`                | Packages that import a package       |
 | `godig symbols <path>`                    | Exported symbols of a package        |
 | `godig vulns <path>`                      | Known vulnerabilities                |

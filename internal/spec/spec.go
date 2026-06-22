@@ -32,12 +32,14 @@ type Param struct {
 
 // Operation describes one pkg.go.dev operation.
 type Operation struct {
-	Group   string // "" for a top-level command, otherwise the parent command
-	Name    string // command/subcommand name
-	Short   string
-	Arg     string // required positional argument name ("" = none), e.g. "path" or "query"
-	ArgDesc string // description of the positional argument
-	Params  []Param
+	Group    string // "" for a top-level command, otherwise the parent command
+	Name     string // command/subcommand name
+	Short    string
+	Arg      string // required positional argument name ("" = none), e.g. "path" or "query"
+	ArgDesc  string // description of the positional argument
+	Arg2     string // optional second required positional argument ("" = none); requires Arg
+	Arg2Desc string // description of the second positional argument
+	Params   []Param
 }
 
 // Key is the dispatch key and MCP tool name (e.g. "package-info", "search").
@@ -59,8 +61,9 @@ var (
 )
 
 const (
-	argName = "path"                          // common positional argument name
-	argDesc = "Package or module import path" // common positional argument description
+	argName     = "path"                          // common positional argument name
+	argDesc     = "Package or module import path" // common positional argument description
+	paramSymbol = "symbol"                        // common symbol parameter name
 )
 
 // GroupShort returns the short description of a parent command.
@@ -95,7 +98,7 @@ var Operations = []Operation{
 		Arg:     "query",
 		ArgDesc: "Search query matching packages",
 		Params: []Param{
-			{"symbol", String, "Restrict results to packages exporting this symbol"},
+			{paramSymbol, String, "Restrict results to packages exporting this symbol"},
 			pLimit, pFilter,
 		},
 	},
@@ -125,10 +128,13 @@ var Operations = []Operation{
 	{
 		Group:   groupPackage,
 		Name:    "examples",
-		Short:   "Go package documentation including runnable examples. LARGE.",
+		Short:   "Go package documentation including runnable examples. LARGE (use --symbol to scope).",
 		Arg:     argName,
 		ArgDesc: argDesc,
-		Params:  []Param{pModule, pVersion, pGOOS, pGOARCH},
+		Params: []Param{
+			{paramSymbol, String, "Show examples for this symbol only (e.g. 'Map' or 'Type.Method')"},
+			pModule, pVersion, pGOOS, pGOARCH,
+		},
 	},
 	{
 		Group:   groupPackage,
@@ -185,11 +191,33 @@ var Operations = []Operation{
 		Params:  []Param{pLimit, pFilter},
 	},
 	{
+		Name:    "major-versions",
+		Short:   "List a Go module's major versions (v1, v2, v3 ...), which live as separate modules.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params: []Param{
+			pLimit, pFilter,
+			{"exclude-pseudo", Bool, "Drop majors whose latest version is a pseudo-version"},
+		},
+	},
+	{
 		Name:    "symbols",
 		Short:   "List a Go package's exported symbols (types, funcs, methods).",
 		Arg:     argName,
 		ArgDesc: argDesc,
 		Params:  []Param{pModule, pVersion, pGOOS, pGOARCH, pLimit, pFilter},
+	},
+	{
+		Name:     "symbol",
+		Short:    "Documentation for a single exported symbol (signature + doc). Token-efficient vs package doc.",
+		Arg:      argName,
+		ArgDesc:  argDesc,
+		Arg2:     paramSymbol,
+		Arg2Desc: "Exported symbol, e.g. 'Map' or 'Type.Method'",
+		Params: []Param{
+			pModule, pVersion, pGOOS, pGOARCH,
+			{"examples", Bool, "Include runnable examples for the symbol"},
+		},
 	},
 	{
 		Name:    "vulns",

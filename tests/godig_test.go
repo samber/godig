@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/samber/godig/internal/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -221,5 +222,6 @@ func TestMCP_Stdio_ToolsList(t *testing.T) {
 			tools = len(msg.Result.Tools)
 		}
 	}
-	assert.Equal(t, 14, tools)
+	// One MCP tool per spec operation (groups add no tool of their own).
+	assert.Equal(t, len(spec.Operations), tools)
 }
