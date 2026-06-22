@@ -160,13 +160,8 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 	case "package-examples":
 		// Scoped to a single symbol when --symbol is given: return just that
 		// symbol's examples instead of the whole (large) package examples blob.
-		// Symbol() always parses the markdown doc, so only WithExamples matters.
 		if sym := str(a, "symbol"); sym != "" {
-			s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithExamples())...)
-			if err != nil {
-				return nil, err
-			}
-			return s.Examples, nil
+			return d.symbolExamples(ctx, path, sym, opts)
 		}
 		// The API embeds examples in the docs, which require a doc format.
 		p, err := d.c.Package(ctx, path, append(opts, pkggodev.WithDoc("md"), pkggodev.WithExamples())...)
@@ -227,16 +222,22 @@ func (d *Dispatcher) routeSymbol(ctx context.Context, name, path string, a map[s
 	case "symbol-doc":
 		return d.c.Symbol(ctx, path, sym, opts...)
 	case "symbol-examples":
-		// Symbol() always parses the package's markdown doc, so only WithExamples
-		// matters here (WithDoc is a no-op on this call).
-		s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithExamples())...)
-		if err != nil {
-			return nil, err
-		}
-		return s.Examples, nil
+		return d.symbolExamples(ctx, path, sym, opts)
 	default:
 		return nil, fmt.Errorf("unknown operation %q", name)
 	}
+}
+
+// symbolExamples returns just the runnable examples of a single exported symbol.
+// Symbol() always parses the package's markdown doc, so only WithExamples matters
+// here (WithDoc is a no-op on this call). Shared by `symbol examples` and
+// `package examples --symbol`.
+func (d *Dispatcher) symbolExamples(ctx context.Context, path, sym string, opts []pkggodev.Option) ([]pkggodev.Example, error) {
+	s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithExamples())...)
+	if err != nil {
+		return nil, err
+	}
+	return s.Examples, nil
 }
 
 // majorVersions lists a module's major versions. MajorVersions applies
@@ -374,17 +375,10 @@ func optionsFrom(a map[string]any) []pkggodev.Option {
 	}
 
 	// Facet options (doc/examples/imports/licenses/readme) are applied explicitly
-	// by the routePackage/routeSymbol handlers, not derived from generic flags.
-	boolOpts := []struct {
-		key string
-		fn  func() pkggodev.Option
-	}{
-		{"exclude-pseudo", pkggodev.WithExcludePseudo},
-	}
-	for _, b := range boolOpts {
-		if boolOf(a, b.key) {
-			o = append(o, b.fn())
-		}
+	// by the routePackage/routeSymbol handlers, not derived from generic flags;
+	// exclude-pseudo is the only bool flag left in the generic path.
+	if boolOf(a, "exclude-pseudo") {
+		o = append(o, pkggodev.WithExcludePseudo())
 	}
 
 	return o
