@@ -80,7 +80,7 @@ func newDispatcher() (*dispatch.Dispatcher, error) {
 			Timeout:   timeout,
 			Transport: logging.Transport(nil),
 		}),
-		pkggodev.WithUserAgent("godig"),
+		pkggodev.WithUserAgent("samber/godig/"+version),
 	)
 	if err != nil {
 		return nil, err
