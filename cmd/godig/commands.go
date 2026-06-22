@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/samber/godig/internal/spec"
 	"github.com/spf13/cobra"
 )
@@ -58,6 +61,7 @@ func buildCommand(op spec.Operation) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: op.Short,
+		Long:  longHelp(op),
 		Args:  argsOrHelp(argsRule),
 		RunE: func(cmd *cobra.Command, posArgs []string) error {
 			return runOperation(cmd, op.Key(), args, posArgs)
@@ -76,4 +80,23 @@ func buildCommand(op spec.Operation) *cobra.Command {
 	}
 
 	return cmd
+}
+
+// longHelp augments the short description with a description of each positional
+// argument. Cobra's usage line only shows argument names (<path> <symbol>), so
+// without this the spec's ArgDesc/Arg2Desc — surfaced by the MCP tool schema —
+// would be lost in the CLI help. Returns "" (cobra falls back to Short) when the
+// operation takes no positional argument.
+func longHelp(op spec.Operation) string {
+	if op.Arg == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(op.Short)
+	b.WriteString("\n\nArguments:\n")
+	fmt.Fprintf(&b, "  %-8s %s\n", op.Arg, op.ArgDesc)
+	if op.Arg2 != "" {
+		fmt.Fprintf(&b, "  %-8s %s\n", op.Arg2, op.Arg2Desc)
+	}
+	return b.String()
 }
