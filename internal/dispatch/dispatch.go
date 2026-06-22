@@ -114,8 +114,12 @@ func (d *Dispatcher) route(ctx context.Context, name string, a map[string]any) (
 		return collectN(d.c.AllPackages(ctx, path, opts...), limit)
 	case "versions":
 		return collectN(d.c.AllVersions(ctx, path, opts...), limit)
+	case "major-versions":
+		return d.majorVersions(ctx, path, opts)
 	case "symbols":
 		return collectN(d.c.AllSymbols(ctx, path, opts...), limit)
+	case "symbol":
+		return d.symbol(ctx, path, a, opts)
 	case "vulns":
 		return collectN(d.c.AllVulns(ctx, path, opts...), limit)
 	default:
@@ -146,6 +150,15 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 		}
 		return p.Docs, nil
 	case "package-examples":
+		// Scoped to a single symbol when --symbol is given: return just that
+		// symbol's examples instead of the whole (large) package examples blob.
+		if sym := str(a, "symbol"); sym != "" {
+			s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithExamples())...)
+			if err != nil {
+				return nil, err
+			}
+			return s.Examples, nil
+		}
 		// The API embeds examples in the docs, which require a doc format.
 		p, err := d.c.Package(ctx, path, append(opts, pkggodev.WithDoc("md"), pkggodev.WithExamples())...)
 		if err != nil {
@@ -190,6 +203,30 @@ func (d *Dispatcher) routeModule(ctx context.Context, name, path string, opts []
 	default:
 		return nil, fmt.Errorf("unknown operation %q", name)
 	}
+}
+
+// symbol returns the documentation of a single exported symbol. The --symbol
+// argument is required; --format selects the doc rendering (md|text|html).
+func (d *Dispatcher) symbol(ctx context.Context, path string, a map[string]any, opts []pkggodev.Option) (any, error) {
+	sym := str(a, "symbol")
+	if sym == "" {
+		return nil, errors.New("symbol requires a --symbol argument")
+	}
+	if f := str(a, "format"); f != "" {
+		opts = append(opts, pkggodev.WithDoc(f))
+	}
+	return d.c.Symbol(ctx, path, sym, opts...)
+}
+
+// majorVersions lists a module's major versions. MajorVersions applies
+// limit/filter/exclude-pseudo internally, so we return the items slice to render
+// it like the other listing operations.
+func (d *Dispatcher) majorVersions(ctx context.Context, path string, opts []pkggodev.Option) (any, error) {
+	page, err := d.c.MajorVersions(ctx, path, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return page.Items, nil
 }
 
 // Overview is a compact, token-efficient summary of a package, composed from
@@ -333,6 +370,7 @@ func optionsFrom(a map[string]any) []pkggodev.Option {
 		{"imports", pkggodev.WithImports},
 		{"licenses", pkggodev.WithLicenses},
 		{"readme", pkggodev.WithReadme},
+		{"exclude-pseudo", pkggodev.WithExcludePseudo},
 	}
 	for _, b := range boolOpts {
 		if boolOf(a, b.key) {
