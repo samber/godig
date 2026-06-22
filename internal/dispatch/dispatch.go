@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ogen-go/ogen/validate"
 	pkggodev "github.com/samber/go-pkggodev-client"
@@ -106,6 +107,11 @@ func (d *Dispatcher) route(ctx context.Context, name string, a map[string]any) (
 		if str(a, "query") == "" {
 			return nil, errors.New("search requires a query argument")
 		}
+		// WithSymbol only applies to search (it restricts results to packages
+		// exporting the symbol); the symbol routes pass it positionally instead.
+		if sym := str(a, "symbol"); sym != "" {
+			opts = append(opts, pkggodev.WithSymbol(sym))
+		}
 		return collectN(d.c.AllSearch(ctx, opts...), limit)
 	case "imported-by":
 		paths, err := collectN(d.c.AllImportedBy(ctx, path, opts...), limit)
@@ -128,6 +134,38 @@ func (d *Dispatcher) route(ctx context.Context, name string, a map[string]any) (
 	}
 }
 
+// PackageInfo is the metadata-only projection returned by `package info`.
+// Building it from an allow-list (rather than nilling heavy fields on
+// pkggodev.Package) keeps the payload compact and fails safe: a new field on the
+// client struct is never leaked unless it is explicitly added here.
+type PackageInfo struct {
+	Path              string `json:"path"`
+	ModulePath        string `json:"modulePath,omitempty"`
+	Name              string `json:"name,omitempty"`
+	Synopsis          string `json:"synopsis,omitempty"`
+	Version           string `json:"version,omitempty"`
+	Goos              string `json:"goos,omitempty"`
+	Goarch            string `json:"goarch,omitempty"`
+	IsLatest          bool   `json:"isLatest"`
+	IsRedistributable bool   `json:"isRedistributable"`
+	IsStandardLibrary bool   `json:"isStandardLibrary"`
+}
+
+func newPackageInfo(p *pkggodev.Package) PackageInfo {
+	return PackageInfo{
+		Path:              p.Path,
+		ModulePath:        p.ModulePath,
+		Name:              p.Name,
+		Synopsis:          p.Synopsis,
+		Version:           p.Version,
+		Goos:              p.Goos,
+		Goarch:            p.Goarch,
+		IsLatest:          p.IsLatest,
+		IsRedistributable: p.IsRedistributable,
+		IsStandardLibrary: p.IsStandardLibrary,
+	}
+}
+
 // routePackage handles the `package` subcommands, projecting the response to the
 // requested facet only (no basic info on doc/examples/licenses).
 func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[string]any, opts []pkggodev.Option) (any, error) {
@@ -137,10 +175,7 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 		if err != nil {
 			return nil, err
 		}
-		p.Docs = ""
-		p.Licenses = nil
-		p.Imports = nil
-		return p, nil
+		return newPackageInfo(p), nil
 	case "package-imports":
 		p, err := d.c.Package(ctx, path, append(opts, pkggodev.WithImports())...)
 		if err != nil {
@@ -180,6 +215,32 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 	}
 }
 
+// ModuleInfo is the metadata-only projection returned by `module info`.
+// See PackageInfo for the allow-list rationale.
+type ModuleInfo struct {
+	Path              string    `json:"path"`
+	Version           string    `json:"version,omitempty"`
+	RepoURL           string    `json:"repoUrl,omitempty"`
+	CommitTime        time.Time `json:"commitTime,omitzero"`
+	HasGoMod          bool      `json:"hasGoMod"`
+	IsLatest          bool      `json:"isLatest"`
+	IsRedistributable bool      `json:"isRedistributable"`
+	IsStandardLibrary bool      `json:"isStandardLibrary"`
+}
+
+func newModuleInfo(m *pkggodev.Module) ModuleInfo {
+	return ModuleInfo{
+		Path:              m.Path,
+		Version:           m.Version,
+		RepoURL:           m.RepoURL,
+		CommitTime:        m.CommitTime,
+		HasGoMod:          m.HasGoMod,
+		IsLatest:          m.IsLatest,
+		IsRedistributable: m.IsRedistributable,
+		IsStandardLibrary: m.IsStandardLibrary,
+	}
+}
+
 // routeModule handles the `module` subcommands.
 func (d *Dispatcher) routeModule(ctx context.Context, name, path string, opts []pkggodev.Option) (any, error) {
 	switch name {
@@ -188,10 +249,7 @@ func (d *Dispatcher) routeModule(ctx context.Context, name, path string, opts []
 		if err != nil {
 			return nil, err
 		}
-		m.Licenses = nil
-		m.Readme = pkggodev.Readme{}
-		m.GoModContents = ""
-		return m, nil
+		return newModuleInfo(m), nil
 	case "module-licenses":
 		m, err := d.c.Module(ctx, path, append(opts, pkggodev.WithLicenses())...)
 		if err != nil {
@@ -360,7 +418,6 @@ func optionsFrom(a map[string]any) []pkggodev.Option {
 		{"module", pkggodev.WithModule},
 		{"filter", pkggodev.WithFilter},
 		{"query", pkggodev.WithQuery},
-		{"symbol", pkggodev.WithSymbol},
 		{"goos", pkggodev.WithGOOS},
 		{"goarch", pkggodev.WithGOARCH},
 	}

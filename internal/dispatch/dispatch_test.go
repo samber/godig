@@ -57,19 +57,48 @@ func TestInvoke_PackageImports(t *testing.T) {
 	assert.Equal(t, []string{"fmt", "strings"}, imports)
 }
 
+func TestInvoke_PackageInfo_ProjectsMetadataOnly(t *testing.T) {
+	t.Parallel()
+	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1beta/package/github.com/samber/lo", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		// API returns heavy fields too; package info must not leak them.
+		_, _ = w.Write([]byte(`{"path":"github.com/samber/lo","name":"lo","version":"v1.2.3",` +
+			`"docs":"# huge docs","imports":["fmt"],"licenses":[{"types":["MIT"]}]}`))
+	})
+
+	out, err := d.Invoke(context.Background(), "package-info", map[string]any{
+		"path": "github.com/samber/lo",
+	})
+	require.NoError(t, err)
+
+	// Allow-list projection: only metadata fields, no docs/imports/licenses.
+	b, err := json.Marshal(out)
+	require.NoError(t, err)
+	s := string(b)
+	assert.Contains(t, s, `"name":"lo"`)
+	assert.Contains(t, s, `"version":"v1.2.3"`)
+	assert.NotContains(t, s, "docs")
+	assert.NotContains(t, s, "imports")
+	assert.NotContains(t, s, "licenses")
+}
+
 func TestInvoke_GetSearch(t *testing.T) {
 	t.Parallel()
 	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/v1beta/search", r.URL.Path)
 		assert.Equal(t, "slice", r.URL.Query().Get("q"))
 		assert.Equal(t, "5", r.URL.Query().Get("limit"))
+		// search is the only operation that forwards --symbol as a query filter.
+		assert.Equal(t, "Map", r.URL.Query().Get("symbol"))
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"results":[]}`))
 	})
 
 	_, err := d.Invoke(context.Background(), "search", map[string]any{
-		"query": "slice",
-		"limit": float64(5), // MCP delivers numbers as float64
+		"query":  "slice",
+		"symbol": "Map",
+		"limit":  float64(5), // MCP delivers numbers as float64
 	})
 	require.NoError(t, err)
 }
