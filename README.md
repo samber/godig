@@ -85,7 +85,7 @@ All flags can also be set via `GODIG_`-prefixed environment variables.
 | `godig overview <path>`                   | One-call compact summary (start here)|
 | `godig search <query> [--symbol <s>]`     | Search packages and symbols          |
 | `godig package info <path>`               | Package metadata                     |
-| `godig package imports <path>`            | Packages a package imports           |
+| `godig package imports <path>`            | Packages that a package imports      |
 | `godig package doc <path> --format <fmt>` | Package documentation (md/text/html) |
 | `godig package examples <path>`           | Documentation with examples (`--symbol` to scope) |
 | `godig package licenses <path>`           | Package licenses                     |
