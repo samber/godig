@@ -32,12 +32,14 @@ type Param struct {
 
 // Operation describes one pkg.go.dev operation.
 type Operation struct {
-	Group   string // "" for a top-level command, otherwise the parent command
-	Name    string // command/subcommand name
-	Short   string
-	Arg     string // required positional argument name ("" = none), e.g. "path" or "query"
-	ArgDesc string // description of the positional argument
-	Params  []Param
+	Group    string // "" for a top-level command, otherwise the parent command
+	Name     string // command/subcommand name
+	Short    string
+	Arg      string // required positional argument name ("" = none), e.g. "path" or "query"
+	ArgDesc  string // description of the positional argument
+	Arg2     string // optional second required positional argument ("" = none); requires Arg
+	Arg2Desc string // description of the second positional argument
+	Params   []Param
 }
 
 // Key is the dispatch key and MCP tool name (e.g. "package-info", "search").
@@ -206,12 +208,13 @@ var Operations = []Operation{
 		Params:  []Param{pModule, pVersion, pGOOS, pGOARCH, pLimit, pFilter},
 	},
 	{
-		Name:    "symbol",
-		Short:   "Documentation for a single exported symbol (signature + doc). Token-efficient vs package doc.",
-		Arg:     argName,
-		ArgDesc: argDesc,
+		Name:     "symbol",
+		Short:    "Documentation for a single exported symbol (signature + doc). Token-efficient vs package doc.",
+		Arg:      argName,
+		ArgDesc:  argDesc,
+		Arg2:     paramSymbol,
+		Arg2Desc: "Exported symbol, e.g. 'Map' or 'Type.Method'",
 		Params: []Param{
-			{paramSymbol, String, "Exported symbol, e.g. 'Map' or 'Type.Method' (required)"},
 			pModule, pVersion, pGOOS, pGOARCH,
 			{"format", String, "Documentation format: md|text|html|markdown"},
 			{"examples", Bool, "Include runnable examples for the symbol"},

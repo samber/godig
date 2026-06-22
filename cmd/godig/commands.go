@@ -43,6 +43,11 @@ func buildCommand(op spec.Operation) *cobra.Command {
 		args = []string{op.Arg}
 		argsRule = cobra.ExactArgs(1)
 	}
+	if op.Arg2 != "" {
+		use += " <" + op.Arg2 + ">"
+		args = append(args, op.Arg2)
+		argsRule = cobra.ExactArgs(len(args))
+	}
 
 	cmd := &cobra.Command{
 		Use:   use,

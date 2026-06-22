@@ -47,8 +47,8 @@ godig package examples github.com/samber/ro --symbol Map   # examples for one sy
 godig package licenses github.com/samber/ro
 
 # One symbol's signature + doc (token-efficient vs the full package doc)
-godig symbol github.com/samber/ro --symbol Map
-godig symbol github.com/samber/mo --symbol Either.ForEach --examples
+godig symbol github.com/samber/ro Map
+godig symbol github.com/samber/mo Either.ForEach --examples
 
 # Module facets
 godig module info github.com/samber/ro
@@ -87,7 +87,7 @@ All flags can also be set via `GODIG_`-prefixed environment variables.
 | `godig package doc <path> --format <fmt>` | Package documentation (md/text/html) |
 | `godig package examples <path>`           | Documentation with examples (`--symbol` to scope) |
 | `godig package licenses <path>`           | Package licenses                     |
-| `godig symbol <path> --symbol <s>`        | One symbol's signature + doc         |
+| `godig symbol <path> <symbol>`            | One symbol's signature + doc         |
 | `godig module info <path>`                | Module metadata                      |
 | `godig module licenses <path>`            | Module licenses                      |
 | `godig module readme <path>`              | Module README                        |

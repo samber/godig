@@ -17,6 +17,12 @@ func registerTools(s *server.MCPServer, h *handler) {
 				mcp.Description(op.ArgDesc),
 			))
 		}
+		if op.Arg2 != "" {
+			opts = append(opts, mcp.WithString(op.Arg2,
+				mcp.Required(),
+				mcp.Description(op.Arg2Desc),
+			))
+		}
 		for _, p := range op.Params {
 			switch p.Type {
 			case spec.Int:
