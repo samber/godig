@@ -76,12 +76,69 @@ func TestInvoke_GetSearch(t *testing.T) {
 func TestInvoke_Symbol_RequiresSymbol(t *testing.T) {
 	t.Parallel()
 	d := newDispatcher(t, func(_ http.ResponseWriter, _ *http.Request) {
-		t.Error("client must not be called when --symbol is missing")
+		t.Error("client must not be called when the symbol argument is missing")
 	})
 	_, err := d.Invoke(context.Background(), "symbol", map[string]any{
 		"path": "github.com/samber/lo",
 	})
 	require.Error(t, err)
+}
+
+// packageDocFixture is a minimal pkg.go.dev markdown doc with one function and
+// its example, in the layout the client's single-symbol parser expects (the
+// example is associated with the preceding function section).
+func packageDocFixture() string {
+	f := "```"
+	return strings.Join([]string{
+		"# package demo",
+		"",
+		"## Functions",
+		"",
+		f + "go",
+		"func Foo(a int) int",
+		f,
+		"Foo doubles its argument.",
+		"",
+		"#### Example",
+		"",
+		f + "go",
+		"{",
+		"\tfmt.Println(Foo(2))",
+		"}",
+		f,
+		"Output:",
+		"",
+		f,
+		"4",
+		f,
+	}, "\n")
+}
+
+func TestInvoke_PackageExamples_BySymbol(t *testing.T) {
+	t.Parallel()
+	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
+		// --symbol routes through Symbol(), which fetches the package doc.
+		assert.True(t, strings.HasPrefix(r.URL.Path, "/v1beta/package/"), r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]any{
+			"path": "demo/pkg",
+			"name": "demo",
+			"docs": packageDocFixture(),
+		})
+		_, _ = w.Write(body)
+	})
+
+	out, err := d.Invoke(context.Background(), "package-examples", map[string]any{
+		"path":   "demo/pkg",
+		"symbol": "Foo",
+	})
+	require.NoError(t, err)
+
+	// The result is the symbol's examples (a slice), not the whole docs string.
+	examples, ok := out.([]pkggodev.Example)
+	require.True(t, ok, "expected []pkggodev.Example, got %T", out)
+	require.NotEmpty(t, examples)
+	assert.Contains(t, examples[0].Code, "Foo(2)")
 }
 
 func TestInvoke_MajorVersions(t *testing.T) {

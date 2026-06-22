@@ -35,6 +35,12 @@ func init() {
 }
 
 func buildCommand(op spec.Operation) *cobra.Command {
+	// A second positional only makes sense alongside the first; catch catalog
+	// misconfiguration at startup rather than producing a malformed command.
+	if op.Arg2 != "" && op.Arg == "" {
+		panic("spec: operation " + op.Name + " sets Arg2 without Arg")
+	}
+
 	use := op.Name
 	var args []string
 	argsRule := cobra.NoArgs

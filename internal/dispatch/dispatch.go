@@ -206,14 +206,12 @@ func (d *Dispatcher) routeModule(ctx context.Context, name, path string, opts []
 }
 
 // symbol returns the documentation of a single exported symbol. The symbol
-// argument is required; --format selects the doc rendering (md|text|html).
+// argument is required. The doc format is fixed by the client (it parses the
+// package's markdown documentation), so there is no --format option here.
 func (d *Dispatcher) symbol(ctx context.Context, path string, a map[string]any, opts []pkggodev.Option) (any, error) {
 	sym := str(a, "symbol")
 	if sym == "" {
 		return nil, errors.New("symbol requires a symbol argument")
-	}
-	if f := str(a, "format"); f != "" {
-		opts = append(opts, pkggodev.WithDoc(f))
 	}
 	return d.c.Symbol(ctx, path, sym, opts...)
 }

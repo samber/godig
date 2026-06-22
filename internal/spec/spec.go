@@ -216,7 +216,6 @@ var Operations = []Operation{
 		Arg2Desc: "Exported symbol, e.g. 'Map' or 'Type.Method'",
 		Params: []Param{
 			pModule, pVersion, pGOOS, pGOARCH,
-			{"format", String, "Documentation format: md|text|html|markdown"},
 			{"examples", Bool, "Include runnable examples for the symbol"},
 		},
 	},
