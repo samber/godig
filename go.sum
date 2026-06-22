@@ -75,6 +75,8 @@ github.com/samber/go-pkggodev-client v0.1.0 h1:extewcQCLWvrxPCeGhX9sM87kLdq94uTF
 github.com/samber/go-pkggodev-client v0.1.0/go.mod h1:xATZslMDS81DLrnpiK4E+h3qfvz5z6Gxi5ijCJM6gyY=
 github.com/samber/go-pkggodev-client v0.2.0 h1:tcToCfDbx+7kN0aPB6eu0FzMAveYrmCssqI214/33BA=
 github.com/samber/go-pkggodev-client v0.2.0/go.mod h1:OLRvaNGSIOJ7NncJrConRUBI/DK+NvllB2s3B37SBDY=
+github.com/samber/go-pkggodev-client v0.3.0 h1:nrgVSXtvd6H5y09eKFrup8BQKL6S2YzxgRohzXsCfdA=
+github.com/samber/go-pkggodev-client v0.3.0/go.mod h1:tQKn0VDMRjTWCisR5uRX+wxZFkBs4jVkRIykApoyKpk=
 github.com/samber/go-singleflightx v0.3.2 h1:jXbUU0fvis8Fdv4HGONboX5WdEZcYLoBEcKiE+ITCyQ=
 github.com/samber/go-singleflightx v0.3.2/go.mod h1:X2BR+oheHIYc73PvxRMlcASg6KYYTQyUYpdVU7t/ux4=
 github.com/samber/hot v0.13.0 h1:4/OyD5xNfhmdHqyKWHHSisiytp93gA3knkWZLAvld2w=
