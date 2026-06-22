@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log/slog"
 
 	"github.com/samber/godig/internal/render"
@@ -39,7 +38,7 @@ func runOperation(cmd *cobra.Command, name string, pathParams, args []string) er
 	if err != nil {
 		return err
 	}
-	out, err := d.Invoke(context.Background(), name, m)
+	out, err := d.Invoke(cmd.Context(), name, m)
 	if err != nil {
 		slog.Error("command failed", "command", name, "err", err)
 		return err
