@@ -46,7 +46,7 @@ func (h *handler) handle(opID string) server.ToolHandlerFunc {
 			slog.Error("mcp tool failed", "tool", opID, "err", err)
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		b, err := json.MarshalIndent(out, "", "  ")
+		b, err := json.Marshal(out)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
