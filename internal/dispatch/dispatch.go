@@ -181,7 +181,11 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 		if err != nil {
 			return nil, err
 		}
-		return p.Imports, nil
+		imports := p.Imports
+		if imports == nil {
+			imports = []string{}
+		}
+		return imports, nil
 	case "package-doc":
 		format := str(a, "format")
 		if format == "" {
