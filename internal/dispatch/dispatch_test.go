@@ -38,22 +38,23 @@ func newDispatcherWithProxy(t *testing.T, proxy http.HandlerFunc) *dispatch.Disp
 	return dispatch.New(c)
 }
 
-func TestInvoke_GetPackage(t *testing.T) {
+func TestInvoke_PackageImports(t *testing.T) {
 	t.Parallel()
 	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/v1beta/package/github.com/samber/lo", r.URL.Path)
 		assert.Equal(t, "true", r.URL.Query().Get("imports"))
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"path":"github.com/samber/lo","name":"lo"}`))
+		_, _ = w.Write([]byte(`{"path":"github.com/samber/lo","name":"lo","imports":["fmt","strings"]}`))
 	})
 
-	out, err := d.Invoke(context.Background(), "package-info", map[string]any{
-		"path":    "github.com/samber/lo",
-		"imports": true,
+	out, err := d.Invoke(context.Background(), "package-imports", map[string]any{
+		"path": "github.com/samber/lo",
 	})
 	require.NoError(t, err)
-	b, _ := json.Marshal(out)
-	assert.Contains(t, string(b), `"github.com/samber/lo"`)
+	// The result is just the list of imports, not the whole package payload.
+	imports, ok := out.([]string)
+	require.True(t, ok, "expected []string, got %T", out)
+	assert.Equal(t, []string{"fmt", "strings"}, imports)
 }
 
 func TestInvoke_GetSearch(t *testing.T) {
@@ -78,7 +79,7 @@ func TestInvoke_Symbol_RequiresSymbol(t *testing.T) {
 	d := newDispatcher(t, func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("client must not be called when the symbol argument is missing")
 	})
-	_, err := d.Invoke(context.Background(), "symbol", map[string]any{
+	_, err := d.Invoke(context.Background(), "symbol-doc", map[string]any{
 		"path": "github.com/samber/lo",
 	})
 	require.Error(t, err)
@@ -135,6 +136,59 @@ func TestInvoke_PackageExamples_BySymbol(t *testing.T) {
 	require.NoError(t, err)
 
 	// The result is the symbol's examples (a slice), not the whole docs string.
+	examples, ok := out.([]pkggodev.Example)
+	require.True(t, ok, "expected []pkggodev.Example, got %T", out)
+	require.NotEmpty(t, examples)
+	assert.Contains(t, examples[0].Code, "Foo(2)")
+}
+
+func TestInvoke_SymbolDoc(t *testing.T) {
+	t.Parallel()
+	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.True(t, strings.HasPrefix(r.URL.Path, "/v1beta/package/"), r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]any{
+			"path": "demo/pkg",
+			"name": "demo",
+			"docs": packageDocFixture(),
+		})
+		_, _ = w.Write(body)
+	})
+
+	out, err := d.Invoke(context.Background(), "symbol-doc", map[string]any{
+		"path":   "demo/pkg",
+		"symbol": "Foo",
+	})
+	require.NoError(t, err)
+
+	// symbol doc returns the full symbol (signature + doc), without examples.
+	sym, ok := out.(*pkggodev.Symbol)
+	require.True(t, ok, "expected *pkggodev.Symbol, got %T", out)
+	assert.Equal(t, "Foo", sym.Name)
+	assert.Contains(t, sym.Signature, "func Foo")
+	assert.Empty(t, sym.Examples, "symbol doc must not include examples")
+}
+
+func TestInvoke_SymbolExamples(t *testing.T) {
+	t.Parallel()
+	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.True(t, strings.HasPrefix(r.URL.Path, "/v1beta/package/"), r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]any{
+			"path": "demo/pkg",
+			"name": "demo",
+			"docs": packageDocFixture(),
+		})
+		_, _ = w.Write(body)
+	})
+
+	out, err := d.Invoke(context.Background(), "symbol-examples", map[string]any{
+		"path":   "demo/pkg",
+		"symbol": "Foo",
+	})
+	require.NoError(t, err)
+
+	// symbol examples returns just the symbol's examples (a slice).
 	examples, ok := out.([]pkggodev.Example)
 	require.True(t, ok, "expected []pkggodev.Example, got %T", out)
 	require.NotEmpty(t, examples)

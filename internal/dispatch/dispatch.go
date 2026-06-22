@@ -92,6 +92,9 @@ func (d *Dispatcher) route(ctx context.Context, name string, a map[string]any) (
 	if strings.HasPrefix(name, "module-") {
 		return d.routeModule(ctx, name, path, opts)
 	}
+	if strings.HasPrefix(name, "symbol-") {
+		return d.routeSymbol(ctx, name, path, a, opts)
+	}
 
 	// Listing operations auto-paginate (AllX) and return the full slice of items,
 	// so the table output shows rows and never a nextToken cursor. --limit caps
@@ -118,8 +121,6 @@ func (d *Dispatcher) route(ctx context.Context, name string, a map[string]any) (
 		return d.majorVersions(ctx, path, opts)
 	case "symbols":
 		return collectN(d.c.AllSymbols(ctx, path, opts...), limit)
-	case "symbol":
-		return d.symbol(ctx, path, a, opts)
 	case "vulns":
 		return collectN(d.c.AllVulns(ctx, path, opts...), limit)
 	default:
@@ -138,7 +139,14 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 		}
 		p.Docs = ""
 		p.Licenses = nil
+		p.Imports = nil
 		return p, nil
+	case "package-imports":
+		p, err := d.c.Package(ctx, path, append(opts, pkggodev.WithImports())...)
+		if err != nil {
+			return nil, err
+		}
+		return p.Imports, nil
 	case "package-doc":
 		format := str(a, "format")
 		if format == "" {
@@ -152,8 +160,9 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 	case "package-examples":
 		// Scoped to a single symbol when --symbol is given: return just that
 		// symbol's examples instead of the whole (large) package examples blob.
+		// Symbol() always parses the markdown doc, so only WithExamples matters.
 		if sym := str(a, "symbol"); sym != "" {
-			s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithDoc("md"), pkggodev.WithExamples())...)
+			s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithExamples())...)
 			if err != nil {
 				return nil, err
 			}
@@ -205,15 +214,29 @@ func (d *Dispatcher) routeModule(ctx context.Context, name, path string, opts []
 	}
 }
 
-// symbol returns the documentation of a single exported symbol. The symbol
-// argument is required. The doc format is fixed by the client (it parses the
-// package's markdown documentation), so there is no --format option here.
-func (d *Dispatcher) symbol(ctx context.Context, path string, a map[string]any, opts []pkggodev.Option) (any, error) {
+// routeSymbol handles the `symbol` subcommands for a single exported symbol:
+// `doc` returns the signature + documentation, `examples` returns just the
+// symbol's runnable examples. The symbol argument is required. The doc format is
+// fixed by the client (it parses the package's markdown documentation).
+func (d *Dispatcher) routeSymbol(ctx context.Context, name, path string, a map[string]any, opts []pkggodev.Option) (any, error) {
 	sym := str(a, "symbol")
 	if sym == "" {
 		return nil, errors.New("symbol requires a symbol argument")
 	}
-	return d.c.Symbol(ctx, path, sym, opts...)
+	switch name {
+	case "symbol-doc":
+		return d.c.Symbol(ctx, path, sym, opts...)
+	case "symbol-examples":
+		// Symbol() always parses the package's markdown doc, so only WithExamples
+		// matters here (WithDoc is a no-op on this call).
+		s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithExamples())...)
+		if err != nil {
+			return nil, err
+		}
+		return s.Examples, nil
+	default:
+		return nil, fmt.Errorf("unknown operation %q", name)
+	}
 }
 
 // majorVersions lists a module's major versions. MajorVersions applies
@@ -346,28 +369,16 @@ func optionsFrom(a map[string]any) []pkggodev.Option {
 		}
 	}
 
-	examples := boolOf(a, "examples")
-	doc := str(a, "doc")
-	if doc == "" && examples {
-		// The API rejects examples without a documentation format (HTTP 400),
-		// so default to markdown when the user asks for examples.
-		doc = "md"
-	}
-	if doc != "" {
-		o = append(o, pkggodev.WithDoc(doc))
-	}
 	if n := intOf(a, "limit"); n > 0 {
 		o = append(o, pkggodev.WithLimit(n))
 	}
 
+	// Facet options (doc/examples/imports/licenses/readme) are applied explicitly
+	// by the routePackage/routeSymbol handlers, not derived from generic flags.
 	boolOpts := []struct {
 		key string
 		fn  func() pkggodev.Option
 	}{
-		{"examples", pkggodev.WithExamples},
-		{"imports", pkggodev.WithImports},
-		{"licenses", pkggodev.WithLicenses},
-		{"readme", pkggodev.WithReadme},
 		{"exclude-pseudo", pkggodev.WithExcludePseudo},
 	}
 	for _, b := range boolOpts {

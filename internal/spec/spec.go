@@ -21,6 +21,7 @@ const (
 const (
 	groupPackage = "package"
 	groupModule  = "module"
+	groupSymbol  = "symbol"
 )
 
 // Param describes one optional query parameter of an operation.
@@ -70,9 +71,11 @@ const (
 func GroupShort(group string) string {
 	switch group {
 	case groupPackage:
-		return "Inspect a package (info, examples, licenses, doc)"
+		return "Inspect a package (info, imports, examples, licenses, doc)"
 	case groupModule:
 		return "Inspect a module (info, licenses, readme)"
+	case groupSymbol:
+		return "Inspect a single exported symbol (doc, examples)"
 	default:
 		return group
 	}
@@ -109,10 +112,15 @@ var Operations = []Operation{
 		Short:   "Go package metadata (name, synopsis, latest version, module).",
 		Arg:     argName,
 		ArgDesc: argDesc,
-		Params: []Param{
-			pModule, pVersion,
-			{"imports", Bool, "Include the packages this one imports"},
-		},
+		Params:  []Param{pModule, pVersion},
+	},
+	{
+		Group:   groupPackage,
+		Name:    "imports",
+		Short:   "List the packages that a Go package imports.",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pModule, pVersion},
 	},
 	{
 		Group:   groupPackage,
@@ -207,17 +215,26 @@ var Operations = []Operation{
 		ArgDesc: argDesc,
 		Params:  []Param{pModule, pVersion, pGOOS, pGOARCH, pLimit, pFilter},
 	},
+	// symbol subcommands
 	{
-		Name:     "symbol",
+		Group:    groupSymbol,
+		Name:     "doc",
 		Short:    "Documentation for a single exported symbol (signature + doc). Token-efficient vs package doc.",
 		Arg:      argName,
 		ArgDesc:  argDesc,
 		Arg2:     paramSymbol,
 		Arg2Desc: "Exported symbol, e.g. 'Map' or 'Type.Method'",
-		Params: []Param{
-			pModule, pVersion, pGOOS, pGOARCH,
-			{"examples", Bool, "Include runnable examples for the symbol"},
-		},
+		Params:   []Param{pModule, pVersion, pGOOS, pGOARCH},
+	},
+	{
+		Group:    groupSymbol,
+		Name:     "examples",
+		Short:    "Runnable examples for a single exported symbol. Token-efficient vs package examples.",
+		Arg:      argName,
+		ArgDesc:  argDesc,
+		Arg2:     paramSymbol,
+		Arg2Desc: "Exported symbol, e.g. 'Map' or 'Type.Method'",
+		Params:   []Param{pModule, pVersion, pGOOS, pGOARCH},
 	},
 	{
 		Name:    "vulns",
