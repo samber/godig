@@ -153,7 +153,7 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 		// Scoped to a single symbol when --symbol is given: return just that
 		// symbol's examples instead of the whole (large) package examples blob.
 		if sym := str(a, "symbol"); sym != "" {
-			s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithExamples())...)
+				s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithDoc("md"), pkggodev.WithExamples())...)
 			if err != nil {
 				return nil, err
 			}
