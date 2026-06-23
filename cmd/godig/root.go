@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	pkggodev "github.com/samber/go-pkggodev-client"
@@ -42,8 +41,9 @@ func Execute() {
 // run executes the root command and returns the process exit code.
 func run() int {
 	// Cancel in-flight work (e.g. an HTTP request to pkg.go.dev) on Ctrl-C or
-	// SIGTERM instead of blocking until the request timeout elapses.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// SIGTERM instead of blocking until the request timeout elapses. The signal
+	// set is platform-specific (see signals_unix.go / signals_windows.go).
+	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals...)
 	defer stop()
 
 	err := rootCmd.ExecuteContext(ctx)
