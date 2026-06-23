@@ -16,6 +16,8 @@ Its commands and MCP tools are built from a small hand-written catalog ([`intern
 > [!TIP]
 > Looking for a **Go library** instead of a CLI? Use [`samber/go-pkggodev-client`](https://github.com/samber/go-pkggodev-client) — the typed pkg.go.dev client that powers `godig`.
 
+<img width="3808" height="1280" alt="image" src="https://github.com/user-attachments/assets/d7a76b36-d298-4b5c-a136-ef739e89816d" />
+
 ## 🚀 Install
 
 ```sh
