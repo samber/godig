@@ -68,18 +68,7 @@ func writeTable(w io.Writer, v any) error {
 	case []any:
 		return rowsTable(w, t)
 	case map[string]any:
-		// Prefer the first array-of-objects field (e.g. results, versions).
-		for _, k := range sortedKeys(t) {
-			if arr, ok := t[k].([]any); ok && len(arr) > 0 {
-				if _, ok := arr[0].(map[string]any); ok {
-					if _, err := fmt.Fprintf(w, "%s:\n", k); err != nil {
-						return err
-					}
-					return rowsTable(w, arr)
-				}
-			}
-		}
-		return kvTable(w, t)
+		return mapSections(w, t)
 	default:
 		return Write(w, v, "json")
 	}
@@ -116,6 +105,68 @@ func rowsTable(w io.Writer, rows []any) error {
 		}
 	}
 	return tw.Flush()
+}
+
+// mapSections renders an object that may mix scalar fields with one or more
+// arrays-of-objects (e.g. `dependencies`: modulePath/version/goVersion plus
+// requires/replaces/excludes). Scalar fields print first as a key/value table,
+// then each object-array prints under its field name — so nothing is dropped, as
+// happened when only the first array was shown. Objects with no array-of-objects
+// field (e.g. `module info`, `overview`) fall back to a plain key/value table.
+func mapSections(w io.Writer, obj map[string]any) error {
+	scalars, sections := splitSections(obj)
+	if len(sections) == 0 {
+		return kvTable(w, obj)
+	}
+	if len(scalars) > 0 {
+		if err := kvTable(w, scalars); err != nil {
+			return err
+		}
+	}
+	for _, s := range sections {
+		if _, err := fmt.Fprintf(w, "\n%s:\n", s.name); err != nil {
+			return err
+		}
+		if err := rowsTable(w, s.rows); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// section is a named array-of-objects field rendered as its own table.
+type section struct {
+	name string
+	rows []any
+}
+
+// splitSections partitions an object into its scalar fields and its
+// arrays-of-objects (each rendered as its own table/section), preserving the
+// rows so callers need no further type assertion.
+func splitSections(obj map[string]any) (scalars map[string]any, sections []section) {
+	scalars = map[string]any{}
+	for _, k := range sortedKeys(obj) {
+		if rows, ok := objectArray(obj[k]); ok {
+			sections = append(sections, section{name: k, rows: rows})
+		} else {
+			scalars[k] = obj[k]
+		}
+	}
+	return scalars, sections
+}
+
+// objectArray returns v as a row slice when it is a non-empty []any whose first
+// element is an object (map) — i.e. a value that renders as a table rather than a
+// scalar — and reports false otherwise.
+func objectArray(v any) ([]any, bool) {
+	arr, ok := v.([]any)
+	if !ok || len(arr) == 0 {
+		return nil, false
+	}
+	if _, ok := arr[0].(map[string]any); !ok {
+		return nil, false
+	}
+	return arr, true
 }
 
 // kvTable renders a flat object as key/value rows.
@@ -170,16 +221,20 @@ func markdown(v any) string {
 	case []any:
 		mdRows(&sb, t)
 	case map[string]any:
-		for _, k := range sortedKeys(t) {
-			if arr, ok := t[k].([]any); ok && len(arr) > 0 {
-				if _, ok := arr[0].(map[string]any); ok {
-					fmt.Fprintf(&sb, "## %s\n\n", k)
-					mdRows(&sb, arr)
-					return sb.String()
-				}
-			}
+		scalars, sections := splitSections(t)
+		if len(sections) == 0 {
+			mdKV(&sb, t)
+			break
 		}
-		mdKV(&sb, t)
+		if len(scalars) > 0 {
+			mdKV(&sb, scalars)
+			sb.WriteString("\n")
+		}
+		for _, s := range sections {
+			fmt.Fprintf(&sb, "## %s\n\n", s.name)
+			mdRows(&sb, s.rows)
+			sb.WriteString("\n")
+		}
 	default:
 		jb, _ := json.MarshalIndent(v, "", "  ")
 		fmt.Fprintf(&sb, "```json\n%s\n```\n", jb)

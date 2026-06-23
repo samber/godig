@@ -50,9 +50,11 @@ func run() int {
 	if err == nil {
 		return 0
 	}
-	// Invalid args/flags already printed the full help (see argsOrHelp); exit cleanly.
+	// Invalid args/flags or a group invoked without a subcommand already printed
+	// the full help (see argsOrHelp / the group RunE). It is a usage error, so
+	// exit 2 (Unix convention) — not 0, which would hide the mistake from scripts.
 	if errors.Is(err, errHelpShown) {
-		return 0
+		return 2
 	}
 	fmt.Fprintln(os.Stderr, "godig:", err)
 	return 1

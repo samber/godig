@@ -32,8 +32,22 @@ func New(c *pkggodev.Client) *Dispatcher { return &Dispatcher{c: c} }
 // the given arguments, returning the typed (JSON-serialisable) response. HTTP
 // status errors are translated into friendly messages.
 func (d *Dispatcher) Invoke(ctx context.Context, name string, a map[string]any) (any, error) {
+	if err := validateArgs(a); err != nil {
+		return nil, err
+	}
 	res, err := d.route(ctx, name, a)
 	return res, friendlyError(err, name, str(a, "path"), str(a, "version"))
+}
+
+// validateArgs rejects out-of-range generic arguments before any network call.
+// A "limit" key is only present when the caller passed it explicitly (the CLI
+// reports only changed flags; MCP reports only provided args), so a non-positive
+// value is always a mistake — silently treating it as "unlimited" hides the bug.
+func validateArgs(a map[string]any) error {
+	if v, ok := a["limit"]; ok && intOf(a, "limit") <= 0 {
+		return fmt.Errorf("limit must be a positive integer, got %v", v)
+	}
+	return nil
 }
 
 // friendlyError turns ogen's "unexpected status code" errors into readable
@@ -339,6 +353,11 @@ func (d *Dispatcher) symbolExamples(ctx context.Context, path, sym string, opts 
 	s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithExamples())...)
 	if err != nil {
 		return nil, err
+	}
+	if s.Examples == nil {
+		// Non-nil so a symbol with no examples renders as "(no results)" / "[]"
+		// instead of a bare "null" (consistent with the listing operations).
+		return []pkggodev.Example{}, nil
 	}
 	return s.Examples, nil
 }

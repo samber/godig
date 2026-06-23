@@ -126,7 +126,7 @@ func TestSearch_RequiresQueryArg(t *testing.T) {
 	t.Parallel()
 	srv := fakeAPI(t)
 	res := run(t, srv.URL, "", "search") // missing <query>
-	assert.Equal(t, 0, res.code)
+	assert.Equal(t, 2, res.code)         // usage error
 	assert.Contains(t, res.stdout, "Usage:")
 	assert.Contains(t, res.stdout, "godig search <query>")
 }
@@ -187,9 +187,25 @@ func TestInvalidArgs_ShowsHelp(t *testing.T) {
 	t.Parallel()
 	srv := fakeAPI(t)
 	res := run(t, srv.URL, "", "imported-by") // missing <path>
-	assert.Equal(t, 0, res.code)
+	assert.Equal(t, 2, res.code)              // usage error
 	assert.Contains(t, res.stdout, "Usage:")
 	assert.Contains(t, res.stdout, "godig imported-by <path>")
+}
+
+func TestGroupWithoutSubcommand_IsUsageError(t *testing.T) {
+	t.Parallel()
+	srv := fakeAPI(t)
+	res := run(t, srv.URL, "", "package") // group, no subcommand
+	assert.Equal(t, 2, res.code)
+	assert.Contains(t, res.stdout, "Usage:")
+}
+
+func TestNonPositiveLimit_IsError(t *testing.T) {
+	t.Parallel()
+	srv := fakeAPI(t)
+	res := run(t, srv.URL, "", "versions", "github.com/samber/lo", "--limit", "0")
+	assert.Equal(t, 1, res.code)
+	assert.Contains(t, res.stderr, "limit must be a positive integer")
 }
 
 func TestMCP_Stdio_ToolsList(t *testing.T) {

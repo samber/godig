@@ -394,3 +394,46 @@ func TestInvoke_UnknownOperation(t *testing.T) {
 	_, err := d.Invoke(context.Background(), "nope", map[string]any{})
 	require.Error(t, err)
 }
+
+// A non-positive limit is a caller mistake (it would otherwise be silently
+// treated as "unlimited"); it must error before any network call is made.
+func TestInvoke_RejectsNonPositiveLimit(t *testing.T) {
+	t.Parallel()
+	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("no request expected for an invalid limit, got %s", r.URL.Path)
+	})
+	for _, lim := range []any{0, -5, float64(0), float64(-1)} {
+		_, err := d.Invoke(context.Background(), "versions", map[string]any{
+			"path":  "github.com/samber/lo",
+			"limit": lim,
+		})
+		require.Error(t, err, "limit %v", lim)
+		assert.Contains(t, err.Error(), "limit must be a positive integer")
+	}
+}
+
+// A symbol with no examples must yield a non-nil empty slice so it renders as an
+// empty list rather than a bare "null".
+func TestInvoke_SymbolExamples_EmptyNotNil(t *testing.T) {
+	t.Parallel()
+	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Doc with a symbol but no Example blocks.
+		body, _ := json.Marshal(map[string]any{
+			"path": "demo/pkg",
+			"name": "demo",
+			"docs": "## func Foo\n\n```go\nfunc Foo()\n```\n",
+		})
+		_, _ = w.Write(body)
+	})
+
+	out, err := d.Invoke(context.Background(), "symbol-examples", map[string]any{
+		"path":   "demo/pkg",
+		"symbol": "Foo",
+	})
+	require.NoError(t, err)
+	examples, ok := out.([]pkggodev.Example)
+	require.True(t, ok, "expected []pkggodev.Example, got %T", out)
+	assert.NotNil(t, examples)
+	assert.Empty(t, examples)
+}
