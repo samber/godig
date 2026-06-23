@@ -1,7 +1,7 @@
 {
   "name": "godig",
   "description": "MCP server for exploring Go packages and modules via pkg.go.dev: search, documentation, symbols, versions, importers and vulnerabilities. Read-only, no authentication.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Samuel Berthe",
     "url": "https://github.com/samber"
