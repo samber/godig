@@ -27,7 +27,7 @@ func init() {
 			parent = &cobra.Command{
 				Use:   group,
 				Short: spec.GroupShort(group),
-				// Running the parent (or an unknown subcommand) shows its help and
+				// Running the parent shows its help and
 				// signals a usage error (errHelpShown -> exit 2): a bare group like
 				// `godig package` is a mistake, not a successful no-op.
 				RunE: func(cmd *cobra.Command, _ []string) error {
