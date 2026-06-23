@@ -402,7 +402,7 @@ func TestInvoke_RejectsNonPositiveLimit(t *testing.T) {
 	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("no request expected for an invalid limit, got %s", r.URL.Path)
 	})
-	for _, lim := range []any{0, -5, float64(0), float64(-1)} {
+	for _, lim := range []any{0, -5, float64(0), float64(-1), float64(1.5)} {
 		_, err := d.Invoke(context.Background(), "versions", map[string]any{
 			"path":  "github.com/samber/lo",
 			"limit": lim,
