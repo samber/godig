@@ -52,9 +52,10 @@ godig symbol doc github.com/samber/ro Map
 godig symbol examples github.com/samber/mo Either.ForEach
 
 # Module facets
-godig module info github.com/samber/ro
+godig module info github.com/samber/ro            # incl. download size + min Go version
 godig module readme github.com/samber/ro
 godig module licenses github.com/samber/ro
+godig dependencies github.com/samber/oops         # go.mod requires/replaces/excludes
 
 # Lists (auto-paginated; --limit to cap, -o md for a Markdown table)
 godig versions github.com/samber/ro -o md
@@ -91,9 +92,10 @@ All flags can also be set via `GODIG_`-prefixed environment variables.
 | `godig package licenses <path>`           | Package licenses                     |
 | `godig symbol doc <path> <symbol>`        | One symbol's signature + doc         |
 | `godig symbol examples <path> <symbol>`   | One symbol's runnable examples       |
-| `godig module info <path>`                | Module metadata                      |
+| `godig module info <path>`                | Module metadata (incl. size + min Go version) |
 | `godig module licenses <path>`            | Module licenses                      |
 | `godig module readme <path>`              | Module README                        |
+| `godig dependencies <module>`             | Module dependencies from its go.mod  |
 | `godig packages <module>`                 | List a module's packages             |
 | `godig versions <module>`                 | List module versions                 |
 | `godig major-versions <module>`           | List major versions (v1, v2, v3 ...) |

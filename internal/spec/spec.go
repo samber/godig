@@ -199,6 +199,13 @@ var Operations = []Operation{
 		Params:  []Param{pLimit, pFilter},
 	},
 	{
+		Name:    "dependencies",
+		Short:   "Export a Go module's dependencies from its go.mod (requires, replaces, excludes, go directive).",
+		Arg:     argName,
+		ArgDesc: argDesc,
+		Params:  []Param{pVersion},
+	},
+	{
 		Name:    "major-versions",
 		Short:   "List a Go module's major versions (v1, v2, v3 ...), which live as separate modules.",
 		Arg:     argName,
