@@ -42,14 +42,25 @@ func Write(w io.Writer, v any, format string) error {
 	}
 }
 
-// writeTable normalises v through JSON and renders the most table-like view.
-func writeTable(w io.Writer, v any) error {
+// toGeneric normalises any typed value into the generic JSON shape
+// (map[string]any / []any / scalar) that the table and markdown renderers
+// introspect.
+func toGeneric(v any) (any, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var generic any
 	if err := json.Unmarshal(b, &generic); err != nil {
+		return nil, err
+	}
+	return generic, nil
+}
+
+// writeTable normalises v through JSON and renders the most table-like view.
+func writeTable(w io.Writer, v any) error {
+	generic, err := toGeneric(v)
+	if err != nil {
 		return err
 	}
 
@@ -149,12 +160,8 @@ func sortedKeys(m map[string]any) []string {
 // objects, a bullet list for a list of scalars, a key/value table for an
 // object, and a fenced JSON block as a fallback.
 func markdown(v any) string {
-	b, err := json.Marshal(v)
+	generic, err := toGeneric(v)
 	if err != nil {
-		return ""
-	}
-	var generic any
-	if err := json.Unmarshal(b, &generic); err != nil {
 		return ""
 	}
 

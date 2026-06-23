@@ -54,13 +54,23 @@ func friendlyError(err error, name, path, version string) error {
 		if version != "" {
 			target += "@" + version
 		}
-		return fmt.Errorf("not found: %s", target)
+		return &apiError{msg: "not found: " + target, err: err}
 	}
 	if msg := apiMessage(status.Payload); msg != "" {
-		return fmt.Errorf("pkg.go.dev: %s (HTTP %d)", msg, status.StatusCode)
+		return &apiError{msg: fmt.Sprintf("pkg.go.dev: %s (HTTP %d)", msg, status.StatusCode), err: err}
 	}
-	return fmt.Errorf("pkg.go.dev returned HTTP %d", status.StatusCode)
+	return &apiError{msg: fmt.Sprintf("pkg.go.dev returned HTTP %d", status.StatusCode), err: err}
 }
+
+// apiError carries a human-friendly message for display while preserving the
+// underlying client error, so callers can still inspect it with errors.Is/As.
+type apiError struct {
+	msg string
+	err error
+}
+
+func (e *apiError) Error() string { return e.msg }
+func (e *apiError) Unwrap() error { return e.err }
 
 // apiMessage extracts the pkg.go.dev error message from a buffered error
 // response body (the ogen client retains it), returning "" if unavailable.
@@ -330,7 +340,7 @@ type Overview struct {
 
 // overview composes package + module + versions + vulns into one compact result.
 // The package lookup is authoritative (its error, e.g. 404, is returned); the
-// secondary lookups are best-effort and silently skipped on error.
+// secondary lookups are best-effort and skipped (logged at debug) on error.
 func (d *Dispatcher) overview(ctx context.Context, path string, opts []pkggodev.Option) (any, error) {
 	pkg, err := d.c.Package(ctx, path, append(opts, pkggodev.WithLicenses())...)
 	if err != nil {
@@ -354,16 +364,22 @@ func (d *Dispatcher) overview(ctx context.Context, path string, opts []pkggodev.
 		if mod.Version != "" {
 			ov.LatestVersion = mod.Version
 		}
+	} else {
+		slog.Debug("overview: module lookup skipped", "module", modulePath, "err", e)
 	}
 	if page, e := d.c.Versions(ctx, modulePath, pkggodev.WithLimit(10)); e == nil {
 		for _, v := range page.Items {
 			ov.RecentVersions = append(ov.RecentVersions, v.Version)
 		}
+	} else {
+		slog.Debug("overview: versions lookup skipped", "module", modulePath, "err", e)
 	}
 	if page, e := d.c.Vulns(ctx, path); e == nil {
 		for _, v := range page.Items {
 			ov.Vulnerabilities = append(ov.Vulnerabilities, v.ID)
 		}
+	} else {
+		slog.Debug("overview: vulns lookup skipped", "path", path, "err", e)
 	}
 	return ov, nil
 }
@@ -448,14 +464,29 @@ func optionsFrom(a map[string]any) []pkggodev.Option {
 // --- argument coercion helpers (tolerate CLI strings and MCP JSON types) ---
 
 func str(a map[string]any, key string) string {
-	v, ok := a[key]
-	if !ok || v == nil {
+	switch v := a[key].(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case bool:
+		return strconv.FormatBool(v)
+	case float64:
+		// JSON numbers decode as float64; render whole numbers without a
+		// fractional part (e.g. a version passed as 2 instead of "2").
+		if v == float64(int64(v)) {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return strconv.FormatFloat(v, 'g', -1, 64)
+	case int:
+		return strconv.Itoa(v)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	default:
+		// Unexpected composite type for a string field: avoid leaking a Go-syntax
+		// representation (fmt.Sprint) into an API path/query.
 		return ""
 	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return fmt.Sprint(v)
 }
 
 func intOf(a map[string]any, key string) int {

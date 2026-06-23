@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -28,18 +30,32 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Execute runs the root command. Called by main.
+// Execute runs the root command. Called by main. It is split from run so the
+// signal-context cleanup (defer) runs before the process exits.
 func Execute() {
-	err := rootCmd.Execute()
+	if code := run(); code != 0 {
+		os.Exit(code)
+	}
+}
+
+// run executes the root command and returns the process exit code.
+func run() int {
+	// Cancel in-flight work (e.g. an HTTP request to pkg.go.dev) on Ctrl-C or
+	// SIGTERM instead of blocking until the request timeout elapses. The signal
+	// set is platform-specific (see signals_unix.go / signals_windows.go).
+	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals...)
+	defer stop()
+
+	err := rootCmd.ExecuteContext(ctx)
 	if err == nil {
-		return
+		return 0
 	}
 	// Invalid args/flags already printed the full help (see argsOrHelp); exit cleanly.
 	if errors.Is(err, errHelpShown) {
-		return
+		return 0
 	}
 	fmt.Fprintln(os.Stderr, "godig:", err)
-	os.Exit(1)
+	return 1
 }
 
 func init() {
