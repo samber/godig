@@ -39,15 +39,49 @@ func (d *Dispatcher) Invoke(ctx context.Context, name string, a map[string]any) 
 	return res, friendlyError(err, name, str(a, "path"), str(a, "version"))
 }
 
+// UsageError marks an invalid-argument error (e.g. a non-positive --limit) so the
+// CLI can map it to exit code 2 — a usage error, consistent with Cobra's handling
+// of missing/invalid flags. The MCP server surfaces it like any other tool error.
+type UsageError struct{ msg string }
+
+func (e *UsageError) Error() string { return e.msg }
+
 // validateArgs rejects out-of-range generic arguments before any network call.
 // A "limit" key is only present when the caller passed it explicitly (the CLI
-// reports only changed flags; MCP reports only provided args), so a non-positive
-// value is always a mistake — silently treating it as "unlimited" hides the bug.
+// reports only changed flags; MCP reports only provided args), so anything that
+// is not a positive integer is a mistake — silently treating 0/negative as
+// "unlimited" (or truncating a fractional 1.5 to 1) would hide the bug.
 func validateArgs(a map[string]any) error {
-	if v, ok := a["limit"]; ok && intOf(a, "limit") <= 0 {
-		return fmt.Errorf("limit must be a positive integer, got %v", v)
+	v, ok := a["limit"]
+	if !ok {
+		return nil
+	}
+	if n, ok := limitOf(v); !ok || n <= 0 {
+		return &UsageError{msg: fmt.Sprintf("limit must be a positive integer, got %v", v)}
 	}
 	return nil
+}
+
+// limitOf coerces a generic limit value (CLI int, MCP JSON float64, or a numeric
+// string) to an int, reporting false for a non-integer value such as 1.5 — which
+// intOf would otherwise silently truncate.
+func limitOf(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		if n != float64(int64(n)) {
+			return 0, false
+		}
+		return int(n), true
+	case string:
+		i, err := strconv.Atoi(n)
+		return i, err == nil
+	default:
+		return 0, false
+	}
 }
 
 // friendlyError turns ogen's "unexpected status code" errors into readable

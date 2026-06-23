@@ -123,8 +123,15 @@ func mapSections(w io.Writer, obj map[string]any) error {
 			return err
 		}
 	}
-	for _, s := range sections {
-		if _, err := fmt.Fprintf(w, "\n%s:\n", s.name); err != nil {
+	for i, s := range sections {
+		// Blank line between blocks, but not before the first one when no scalar
+		// header preceded it (avoids a leading blank line for, e.g., {results:[...]}).
+		if i > 0 || len(scalars) > 0 {
+			if _, err := fmt.Fprintln(w); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintf(w, "%s:\n", s.name); err != nil {
 			return err
 		}
 		if err := rowsTable(w, s.rows); err != nil {

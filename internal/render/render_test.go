@@ -47,6 +47,8 @@ func TestWrite_TableNestedResults(t *testing.T) {
 	out := buf.String()
 	assert.Contains(t, out, "results:")
 	assert.Contains(t, out, "github.com/samber/lo")
+	// No leading blank line when no scalar header precedes the first section.
+	assert.False(t, strings.HasPrefix(out, "\n"), "unexpected leading blank line")
 }
 
 // A dependencies-shaped object mixes scalar fields with several arrays-of-objects;

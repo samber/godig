@@ -56,6 +56,13 @@ func run() int {
 	if errors.Is(err, errHelpShown) {
 		return 2
 	}
+	// A dispatcher validation failure (e.g. a non-positive --limit) is likewise a
+	// usage error: print the message and exit 2, consistent with bad flags above.
+	var usage *dispatch.UsageError
+	if errors.As(err, &usage) {
+		fmt.Fprintln(os.Stderr, "godig:", err)
+		return 2
+	}
 	fmt.Fprintln(os.Stderr, "godig:", err)
 	return 1
 }

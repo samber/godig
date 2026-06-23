@@ -204,7 +204,7 @@ func TestNonPositiveLimit_IsError(t *testing.T) {
 	t.Parallel()
 	srv := fakeAPI(t)
 	res := run(t, srv.URL, "", "versions", "github.com/samber/lo", "--limit", "0")
-	assert.Equal(t, 1, res.code)
+	assert.Equal(t, 2, res.code) // usage error
 	assert.Contains(t, res.stderr, "limit must be a positive integer")
 }
 
