@@ -38,6 +38,20 @@ func newDispatcherWithProxy(t *testing.T, proxy http.HandlerFunc) *dispatch.Disp
 	return dispatch.New(c)
 }
 
+// newDispatcherAPIAndProxy wires both a mock pkg.go.dev API and a mock Go module
+// proxy, needed by operations that combine the two (e.g. `module info` with
+// WithSize: module metadata from the API, zip size from the proxy).
+func newDispatcherAPIAndProxy(t *testing.T, api, proxy http.HandlerFunc) *dispatch.Dispatcher {
+	t.Helper()
+	asrv := httptest.NewServer(api)
+	t.Cleanup(asrv.Close)
+	psrv := httptest.NewServer(proxy)
+	t.Cleanup(psrv.Close)
+	c, err := pkggodev.New(pkggodev.WithBaseURL(asrv.URL+"/v1beta"), pkggodev.WithGoproxy(psrv.URL))
+	require.NoError(t, err)
+	return dispatch.New(c)
+}
+
 func TestInvoke_PackageImports(t *testing.T) {
 	t.Parallel()
 	d := newDispatcher(t, func(w http.ResponseWriter, r *http.Request) {
@@ -249,6 +263,129 @@ func TestInvoke_MajorVersions(t *testing.T) {
 	assert.Contains(t, string(b), "github.com/samber/do/v2")
 	assert.Contains(t, string(b), `"major":"v2"`)
 	assert.Contains(t, string(b), `"major":"v1"`)
+}
+
+func TestInvoke_ModuleInfo_SizeAndGoVersion(t *testing.T) {
+	t.Parallel()
+	d := newDispatcherAPIAndProxy(t,
+		func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/v1beta/module/github.com/samber/lo", r.URL.Path)
+			// WithSize must be requested at the proxy, not the API.
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"path":"github.com/samber/lo","version":"v1.2.3",`+
+				`"goModContents":"module github.com/samber/lo\n\ngo 1.21\n","hasGoMod":true}`)
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			// Size comes from a HEAD on the module zip's Content-Length.
+			assert.Equal(t, http.MethodHead, r.Method)
+			assert.True(t, strings.HasSuffix(r.URL.Path, "/github.com/samber/lo/@v/v1.2.3.zip"), r.URL.Path)
+			w.Header().Set("Content-Length", "4096")
+			w.WriteHeader(http.StatusOK)
+		},
+	)
+
+	out, err := d.Invoke(context.Background(), "module-info", map[string]any{
+		"path": "github.com/samber/lo",
+	})
+	require.NoError(t, err)
+
+	b, err := json.Marshal(out)
+	require.NoError(t, err)
+	s := string(b)
+	assert.Contains(t, s, `"goVersion":"1.21"`)
+	assert.Contains(t, s, `"size":4096`)
+}
+
+// TestInvoke_ModuleInfo_SizeSkippedWithoutProxy verifies `module info` still
+// succeeds (omitting size) when no module proxy is usable, while goVersion —
+// derived from the go.mod the API returns — is still present.
+func TestInvoke_ModuleInfo_SizeSkippedWithoutProxy(t *testing.T) {
+	t.Parallel()
+	d := newDispatcher(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"path":"github.com/samber/lo","version":"v1.2.3",`+
+			`"goModContents":"module github.com/samber/lo\n\ngo 1.21\n","hasGoMod":true}`)
+	})
+
+	out, err := d.Invoke(context.Background(), "module-info", map[string]any{
+		"path": "github.com/samber/lo",
+	})
+	require.NoError(t, err)
+
+	b, err := json.Marshal(out)
+	require.NoError(t, err)
+	s := string(b)
+	assert.Contains(t, s, `"goVersion":"1.21"`)
+	assert.NotContains(t, s, `"size"`)
+}
+
+// TestInvoke_ModuleInfo_GoVersionBackfill covers the common production case
+// where pkg.go.dev returns no go.mod: `module info` must backfill goVersion from
+// the module proxy's go.mod (the "go" directive).
+func TestInvoke_ModuleInfo_GoVersionBackfill(t *testing.T) {
+	t.Parallel()
+	goMod := "module github.com/samber/lo\n\ngo 1.18\n"
+	d := newDispatcherAPIAndProxy(t,
+		func(w http.ResponseWriter, _ *http.Request) {
+			// No goModContents -> goVersion absent from the API response.
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"path":"github.com/samber/lo","version":"v1.2.3","hasGoMod":true}`)
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodHead && strings.HasSuffix(r.URL.Path, "/@v/v1.2.3.zip"):
+				w.Header().Set("Content-Length", "4096")
+				w.WriteHeader(http.StatusOK)
+			case strings.HasSuffix(r.URL.Path, "/github.com/samber/lo/@latest"):
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, `{"Version":"v1.2.3"}`)
+			case strings.HasSuffix(r.URL.Path, "/github.com/samber/lo/@v/v1.2.3.mod"):
+				_, _ = io.WriteString(w, goMod)
+			default:
+				http.NotFound(w, r)
+			}
+		},
+	)
+
+	out, err := d.Invoke(context.Background(), "module-info", map[string]any{
+		"path": "github.com/samber/lo",
+	})
+	require.NoError(t, err)
+
+	b, err := json.Marshal(out)
+	require.NoError(t, err)
+	assert.Contains(t, string(b), `"goVersion":"1.18"`)
+}
+
+func TestInvoke_Dependencies(t *testing.T) {
+	t.Parallel()
+	goMod := "module github.com/samber/do\n\ngo 1.18\n\n" +
+		"require github.com/stretchr/testify v1.8.0\n\n" +
+		"require golang.org/x/sync v0.1.0 // indirect\n"
+	d := newDispatcherWithProxy(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/github.com/samber/do/@latest"):
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"Version":"v1.6.0"}`)
+		case strings.HasSuffix(r.URL.Path, "/github.com/samber/do/@v/v1.6.0.mod"):
+			_, _ = io.WriteString(w, goMod)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	out, err := d.Invoke(context.Background(), "dependencies", map[string]any{
+		"path": "github.com/samber/do",
+	})
+	require.NoError(t, err)
+
+	b, err := json.Marshal(out)
+	require.NoError(t, err)
+	s := string(b)
+	assert.Contains(t, s, `"version":"v1.6.0"`)
+	assert.Contains(t, s, `"goVersion":"1.18"`)
+	assert.Contains(t, s, `github.com/stretchr/testify`)
+	assert.Contains(t, s, `"indirect":true`)
 }
 
 func TestInvoke_UnknownOperation(t *testing.T) {

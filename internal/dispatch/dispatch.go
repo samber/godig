@@ -94,7 +94,6 @@ func apiMessage(resp *http.Response) string {
 func (d *Dispatcher) route(ctx context.Context, name string, a map[string]any) (any, error) {
 	path := str(a, "path")
 	opts := optionsFrom(a)
-	limit := intOf(a, "limit")
 	slog.Info("invoking operation", "operation", name, "path", path, "options", len(opts))
 
 	if strings.HasPrefix(name, "package-") {
@@ -106,10 +105,15 @@ func (d *Dispatcher) route(ctx context.Context, name string, a map[string]any) (
 	if strings.HasPrefix(name, "symbol-") {
 		return d.routeSymbol(ctx, name, path, a, opts)
 	}
+	return d.routeTopLevel(ctx, name, path, a, opts)
+}
 
-	// Listing operations auto-paginate (AllX) and return the full slice of items,
-	// so the table output shows rows and never a nextToken cursor. --limit caps
-	// the total number of items returned.
+// routeTopLevel handles the ungrouped operations (overview, search, the listing
+// commands, dependencies). Listing operations auto-paginate (AllX) and return
+// the full slice of items, so the table output shows rows and never a nextToken
+// cursor. --limit caps the total number of items returned.
+func (d *Dispatcher) routeTopLevel(ctx context.Context, name, path string, a map[string]any, opts []pkggodev.Option) (any, error) {
+	limit := intOf(a, "limit")
 	switch name {
 	case "overview":
 		return d.overview(ctx, path, opts)
@@ -135,6 +139,8 @@ func (d *Dispatcher) route(ctx context.Context, name string, a map[string]any) (
 		return collectN(d.c.AllVersions(ctx, path, opts...), limit)
 	case "major-versions":
 		return d.majorVersions(ctx, path, opts)
+	case "dependencies":
+		return d.c.Dependencies(ctx, path, opts...)
 	case "symbols":
 		return collectN(d.c.AllSymbols(ctx, path, opts...), limit)
 	case "vulns":
@@ -164,12 +170,12 @@ type PackageInfo struct {
 func newPackageInfo(p *pkggodev.Package) PackageInfo {
 	return PackageInfo{
 		Path:              p.Path,
-		ModulePath:        p.ModulePath,
-		Name:              p.Name,
-		Synopsis:          p.Synopsis,
-		Version:           p.Version,
-		Goos:              p.Goos,
-		Goarch:            p.Goarch,
+		ModulePath:        p.ModulePath.OrEmpty(),
+		Name:              p.Name.OrEmpty(),
+		Synopsis:          p.Synopsis.OrEmpty(),
+		Version:           p.Version.OrEmpty(),
+		Goos:              p.Goos.OrEmpty(),
+		Goarch:            p.Goarch.OrEmpty(),
 		IsLatest:          p.IsLatest,
 		IsRedistributable: p.IsRedistributable,
 		IsStandardLibrary: p.IsStandardLibrary,
@@ -205,7 +211,7 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 		if err != nil {
 			return nil, err
 		}
-		return p.Docs, nil
+		return p.Docs.OrEmpty(), nil
 	case "package-examples":
 		// Scoped to a single symbol when --symbol is given: return just that
 		// symbol's examples instead of the whole (large) package examples blob.
@@ -217,7 +223,7 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 		if err != nil {
 			return nil, err
 		}
-		return p.Docs, nil
+		return p.Docs.OrEmpty(), nil
 	case "package-licenses":
 		p, err := d.c.Package(ctx, path, append(opts, pkggodev.WithLicenses())...)
 		if err != nil {
@@ -230,12 +236,16 @@ func (d *Dispatcher) routePackage(ctx context.Context, name, path string, a map[
 }
 
 // ModuleInfo is the metadata-only projection returned by `module info`.
-// See PackageInfo for the allow-list rationale.
+// See PackageInfo for the allow-list rationale. GoVersion is the module's "go"
+// directive (its minimum Go version) and Size is the module zip's download size
+// in bytes (proxy HEAD request); Size is omitted when no module proxy is usable.
 type ModuleInfo struct {
 	Path              string    `json:"path"`
 	Version           string    `json:"version,omitempty"`
+	GoVersion         string    `json:"goVersion,omitempty"`
 	RepoURL           string    `json:"repoUrl,omitempty"`
 	CommitTime        time.Time `json:"commitTime,omitzero"`
+	Size              int64     `json:"size,omitempty"`
 	HasGoMod          bool      `json:"hasGoMod"`
 	IsLatest          bool      `json:"isLatest"`
 	IsRedistributable bool      `json:"isRedistributable"`
@@ -245,9 +255,11 @@ type ModuleInfo struct {
 func newModuleInfo(m *pkggodev.Module) ModuleInfo {
 	return ModuleInfo{
 		Path:              m.Path,
-		Version:           m.Version,
-		RepoURL:           m.RepoURL,
-		CommitTime:        m.CommitTime,
+		Version:           m.Version.OrEmpty(),
+		GoVersion:         m.GoVersion.OrEmpty(),
+		RepoURL:           m.RepoURL.OrEmpty(),
+		CommitTime:        m.CommitTime.OrEmpty(),
+		Size:              m.Size.OrEmpty(),
 		HasGoMod:          m.HasGoMod,
 		IsLatest:          m.IsLatest,
 		IsRedistributable: m.IsRedistributable,
@@ -259,11 +271,30 @@ func newModuleInfo(m *pkggodev.Module) ModuleInfo {
 func (d *Dispatcher) routeModule(ctx context.Context, name, path string, opts []pkggodev.Option) (any, error) {
 	switch name {
 	case "module-info":
-		m, err := d.c.Module(ctx, path, opts...)
+		// WithSize adds the module zip download size (one proxy HEAD request).
+		// Fall back to a size-less lookup when no proxy is usable so `module
+		// info` still works with GOPROXY=off (it then omits the size field).
+		m, err := d.c.Module(ctx, path, append(opts, pkggodev.WithSize())...)
+		if errors.Is(err, pkggodev.ErrProxyDisabled) {
+			slog.Debug("module info: size skipped, proxy disabled", "module", path)
+			m, err = d.c.Module(ctx, path, opts...)
+		}
 		if err != nil {
 			return nil, err
 		}
-		return newModuleInfo(m), nil
+		info := newModuleInfo(m)
+		// pkg.go.dev doesn't return the go.mod, so the "go" directive (the
+		// module's minimum Go version) is absent from the API response.
+		// Backfill it best-effort from the module proxy's go.mod — the same
+		// source as `dependencies` — skipping silently when no proxy is usable.
+		if info.GoVersion == "" {
+			if deps, e := d.c.Dependencies(ctx, path, opts...); e == nil {
+				info.GoVersion = deps.GoVersion.OrEmpty()
+			} else {
+				slog.Debug("module info: goVersion backfill skipped", "module", path, "err", e)
+			}
+		}
+		return info, nil
 	case "module-licenses":
 		m, err := d.c.Module(ctx, path, append(opts, pkggodev.WithLicenses())...)
 		if err != nil {
@@ -275,7 +306,7 @@ func (d *Dispatcher) routeModule(ctx context.Context, name, path string, opts []
 		if err != nil {
 			return nil, err
 		}
-		return m.Readme.Contents, nil
+		return m.Readme.OrEmpty().Contents.OrEmpty(), nil
 	default:
 		return nil, fmt.Errorf("unknown operation %q", name)
 	}
@@ -346,23 +377,23 @@ func (d *Dispatcher) overview(ctx context.Context, path string, opts []pkggodev.
 	if err != nil {
 		return nil, err
 	}
-	modulePath := pkg.ModulePath
+	modulePath := pkg.ModulePath.OrEmpty()
 	if modulePath == "" {
 		modulePath = path
 	}
 	ov := &Overview{
 		Path:              path,
-		Name:              pkg.Name,
-		Synopsis:          pkg.Synopsis,
+		Name:              pkg.Name.OrEmpty(),
+		Synopsis:          pkg.Synopsis.OrEmpty(),
 		ModulePath:        modulePath,
 		IsStandardLibrary: pkg.IsStandardLibrary,
-		LatestVersion:     pkg.Version,
+		LatestVersion:     pkg.Version.OrEmpty(),
 		Licenses:          licenseTypes(pkg.Licenses),
 	}
 	if mod, e := d.c.Module(ctx, modulePath); e == nil {
-		ov.RepoURL = mod.RepoURL
-		if mod.Version != "" {
-			ov.LatestVersion = mod.Version
+		ov.RepoURL = mod.RepoURL.OrEmpty()
+		if v, ok := mod.Version.Get(); ok {
+			ov.LatestVersion = v
 		}
 	} else {
 		slog.Debug("overview: module lookup skipped", "module", modulePath, "err", e)
