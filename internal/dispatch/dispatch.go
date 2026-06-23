@@ -32,8 +32,56 @@ func New(c *pkggodev.Client) *Dispatcher { return &Dispatcher{c: c} }
 // the given arguments, returning the typed (JSON-serialisable) response. HTTP
 // status errors are translated into friendly messages.
 func (d *Dispatcher) Invoke(ctx context.Context, name string, a map[string]any) (any, error) {
+	if err := validateArgs(a); err != nil {
+		return nil, err
+	}
 	res, err := d.route(ctx, name, a)
 	return res, friendlyError(err, name, str(a, "path"), str(a, "version"))
+}
+
+// UsageError marks an invalid-argument error (e.g. a non-positive --limit) so the
+// CLI can map it to exit code 2 — a usage error, consistent with Cobra's handling
+// of missing/invalid flags. The MCP server surfaces it like any other tool error.
+type UsageError struct{ msg string }
+
+func (e *UsageError) Error() string { return e.msg }
+
+// validateArgs rejects out-of-range generic arguments before any network call.
+// A "limit" key is only present when the caller passed it explicitly (the CLI
+// reports only changed flags; MCP reports only provided args), so anything that
+// is not a positive integer is a mistake — silently treating 0/negative as
+// "unlimited" (or truncating a fractional 1.5 to 1) would hide the bug.
+func validateArgs(a map[string]any) error {
+	v, ok := a["limit"]
+	if !ok {
+		return nil
+	}
+	if n, ok := limitOf(v); !ok || n <= 0 {
+		return &UsageError{msg: fmt.Sprintf("limit must be a positive integer, got %v", v)}
+	}
+	return nil
+}
+
+// limitOf coerces a generic limit value (CLI int, MCP JSON float64, or a numeric
+// string) to an int, reporting false for a non-integer value such as 1.5 — which
+// intOf would otherwise silently truncate.
+func limitOf(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		if n != float64(int64(n)) {
+			return 0, false
+		}
+		return int(n), true
+	case string:
+		i, err := strconv.Atoi(n)
+		return i, err == nil
+	default:
+		return 0, false
+	}
 }
 
 // friendlyError turns ogen's "unexpected status code" errors into readable
@@ -339,6 +387,11 @@ func (d *Dispatcher) symbolExamples(ctx context.Context, path, sym string, opts 
 	s, err := d.c.Symbol(ctx, path, sym, append(opts, pkggodev.WithExamples())...)
 	if err != nil {
 		return nil, err
+	}
+	if s.Examples == nil {
+		// Non-nil so a symbol with no examples renders as "(no results)" / "[]"
+		// instead of a bare "null" (consistent with the listing operations).
+		return []pkggodev.Example{}, nil
 	}
 	return s.Examples, nil
 }

@@ -60,6 +60,7 @@ godig dependencies github.com/samber/oops         # go.mod requires/replaces/exc
 # Lists (auto-paginated; --limit to cap, -o md for a Markdown table)
 godig versions github.com/samber/ro -o md
 godig major-versions github.com/samber/do        # v1, v2, v3 ... (separate modules)
+godig major-versions github.com/samber/do --exclude-pseudo   # drop majors whose latest is a pseudo-version
 godig packages github.com/samber/ro
 godig imported-by github.com/samber/ro --limit 20
 godig symbols github.com/samber/ro
@@ -78,6 +79,9 @@ godig mcp
 Global flags: `-o, --output` (`table` default, `json`, `raw`, `md`), `--base-url`, `--timeout`,
 `--log-level` (`debug|info|warn|error|off`, default `error`; logs go to **stderr**).
 All flags can also be set via `GODIG_`-prefixed environment variables.
+
+Exit codes: `0` success, `1` runtime error (e.g. network, package not found), `2` usage error
+(missing/invalid arguments or flags, or a group invoked without a subcommand).
 
 ## 🧠 Commands
 
@@ -105,11 +109,45 @@ All flags can also be set via `GODIG_`-prefixed environment variables.
 | `godig mcp`                               | Run the MCP server (stdio or http)   |
 
 Run `godig <command> --help` (or `godig package --help`) for per-command flags. Each operation is
-also exposed as an MCP tool (e.g. `overview`, `package-info`, `module-readme`).
+also exposed as an MCP tool (e.g. `overview`, `package-info`, `module-readme`). Utility commands:
+`godig version` and `godig completion <shell>` (bash/zsh/fish/powershell).
 
 **For AI agents (token-efficient):** start with `overview` — one call returns a compact summary
 (no large docs). Fetch `doc`, `examples`, `module readme` or `licenses` only when the full text is
 actually needed, and cap long lists (`versions`, `imported-by`) with `--limit`.
+
+## 🔎 Filters
+
+The `--filter` flag (on `search`, `versions`, `packages`, `imported-by`, `symbols`, `vulns`,
+`major-versions`) takes a **Go boolean expression** evaluated server-side over each item. The
+identifiers are the item's fields — which **differ per command**, so a field valid for one list is
+not valid for another (e.g. `search` exposes `packagePath`, not `path`). Helper functions include
+`hasPrefix`, `hasSuffix` and `contains`.
+
+```sh
+godig search "result option" --filter 'hasPrefix(packagePath, "github.com/samber/")'
+godig versions github.com/samber/ro --filter 'hasPrefix(version, "v0.3")'
+godig symbols github.com/samber/ro  --filter 'kind == "Function"'
+godig imported-by github.com/samber/ro --filter 'contains(path, "/internal/")'
+```
+
+Available fields per command (string unless noted):
+
+| Command          | Filterable fields                                                                 |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `search`         | `modulePath`, `packagePath`, `synopsis`, `version`                                 |
+| `versions`       | `version`, `modulePath`, `deprecated` (bool), `retracted` (bool), `hasGoMod` (bool), `commitTime` |
+| `packages`       | `path`, `name`, `synopsis`, `isRedistributable` (bool)                             |
+| `imported-by`    | `path` (the importing package path)                                                |
+| `symbols`        | `name`, `kind` (`Function`/`Method`/`Type`/`Variable`/`Constant`), `synopsis`, `parent` |
+| `vulns`          | `ID`, `package`, `Details`                                                         |
+| `major-versions` | `modulePath`, `major`, `version`, `isLatest` (bool)                                |
+
+> [!NOTE]
+> Identifiers follow the pkg.go.dev API's filter schema, and the casing is not uniform across
+> commands — most use the lowercase JSON field name, but `vulns` uses Go-style names (`ID`, not
+> `id`). `kind` values are capitalized (`Function`, not `func`). An unknown identifier is rejected
+> by the API with `HTTP 400 undefined identifier: <name>`, which names the offending field.
 
 ## 📫 MCP server
 

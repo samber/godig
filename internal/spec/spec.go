@@ -56,7 +56,7 @@ var (
 	pVersion = Param{"version", String, "Module version (semver, 'latest', 'master' or 'main')"}
 	pModule  = Param{"module", String, "Module path"}
 	pLimit   = Param{"limit", Int, "Maximum number of items to return"}
-	pFilter  = Param{"filter", String, "Filter results with a Go boolean expression (see pkg.go.dev API docs)"}
+	pFilter  = Param{"filter", String, `Filter results with a Go boolean expression over each item's fields, e.g. 'hasPrefix(packagePath, "github.com/")' or 'kind == "Function"'. Field names are the item's JSON keys (see README "Filters").`}
 	pGOOS    = Param{"goos", String, "GOOS documentation build context"}
 	pGOARCH  = Param{"goarch", String, "GOARCH documentation build context"}
 )

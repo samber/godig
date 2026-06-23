@@ -47,6 +47,44 @@ func TestWrite_TableNestedResults(t *testing.T) {
 	out := buf.String()
 	assert.Contains(t, out, "results:")
 	assert.Contains(t, out, "github.com/samber/lo")
+	// No leading blank line when no scalar header precedes the first section.
+	assert.False(t, strings.HasPrefix(out, "\n"), "unexpected leading blank line")
+}
+
+// A dependencies-shaped object mixes scalar fields with several arrays-of-objects;
+// every scalar and every section must render, not just the first array.
+func TestWrite_TableMapSections(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	resp := map[string]any{
+		"modulePath": "github.com/x/y",
+		"version":    "v1.2.3",
+		"goVersion":  "1.21",
+		"requires":   []map[string]any{{"path": "github.com/a/b", "version": "v1.0.0"}},
+		"replaces":   []map[string]any{{"oldPath": "github.com/a/b", "newPath": "./local"}},
+	}
+	require.NoError(t, render.Write(&buf, resp, "table"))
+	out := buf.String()
+	assert.Contains(t, out, "goVersion") // scalar kept (was dropped before)
+	assert.Contains(t, out, "1.21")
+	assert.Contains(t, out, "requires:")
+	assert.Contains(t, out, "replaces:") // second section kept
+	assert.Contains(t, out, "./local")
+}
+
+func TestWrite_MarkdownMapSections(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	resp := map[string]any{
+		"goVersion": "1.21",
+		"requires":  []map[string]any{{"path": "github.com/a/b", "version": "v1.0.0"}},
+		"replaces":  []map[string]any{{"oldPath": "github.com/a/b", "newPath": "./local"}},
+	}
+	require.NoError(t, render.Write(&buf, resp, "md"))
+	out := buf.String()
+	assert.Contains(t, out, "| goVersion | 1.21 |")
+	assert.Contains(t, out, "## requires")
+	assert.Contains(t, out, "## replaces")
 }
 
 func TestWrite_UnknownFormat(t *testing.T) {
