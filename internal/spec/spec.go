@@ -248,6 +248,8 @@ var Operations = []Operation{
 		Short:   "Known vulnerabilities of a Go module or package.",
 		Arg:     argName,
 		ArgDesc: argDesc,
-		Params:  []Param{pModule, pVersion, pLimit, pFilter},
+		// Sourced from vuln.go.dev (OSV): the client scopes results client-side and
+		// honors only version + limit; module and filter do not apply here.
+		Params: []Param{pVersion, pLimit},
 	},
 }

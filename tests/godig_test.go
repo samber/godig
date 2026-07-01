@@ -56,8 +56,13 @@ func fakeAPI(t *testing.T) *httptest.Server {
 			_, _ = w.Write([]byte(`{"items":[{"version":"v1.0.0","modulePath":"github.com/samber/lo","commitTime":"2026-03-02T15:10:24Z"}],"total":1}`))
 		case strings.HasPrefix(p, "/v1beta/imported-by/"):
 			_, _ = w.Write([]byte(`{"modulePath":"github.com/samber/lo","importedBy":{"items":["example.com/a","example.com/b"],"total":2}}`))
-		case strings.HasPrefix(p, "/v1beta/vulns/"):
-			_, _ = w.Write([]byte(`{"items":null,"total":0}`))
+		// Vulnerabilities are sourced from the Go vuln database (vuln.go.dev), served
+		// as static JSON: a triage index plus per-ID OSV reports. An empty index
+		// means no module has vulns, so `vulns` resolves to an empty result.
+		case p == "/index/modules.json":
+			_, _ = w.Write([]byte(`[]`))
+		case strings.HasPrefix(p, "/ID/"):
+			w.WriteHeader(http.StatusNotFound)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -77,6 +82,8 @@ func run(t *testing.T, baseURL, stdin string, args ...string) result {
 	full := []string{"--log-level", "off"}
 	if baseURL != "" {
 		full = append(full, "--base-url", baseURL+"/v1beta")
+		// vuln.go.dev endpoints live at the server root (/index/..., /ID/...).
+		full = append(full, "--vuln-base-url", baseURL)
 	}
 	full = append(full, args...)
 
@@ -172,6 +179,54 @@ func TestVulns_NullItemsIsEmpty(t *testing.T) {
 	var items []any
 	require.NoError(t, json.Unmarshal([]byte(res.stdout), &items))
 	assert.Empty(t, items)
+}
+
+// TestVulns_PopulatesSummaryAndRanges exercises the v0.5.0 data source
+// (vuln.go.dev / OSV): summary, details and per-range fix versions must now be
+// filled — the whole point of the upgrade. The old /v1beta/vulns endpoint left
+// summary and fixedVersion empty.
+func TestVulns_PopulatesSummaryAndRanges(t *testing.T) {
+	t.Parallel()
+	const modulePath = "github.com/example/vuln"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/index/modules.json":
+			_, _ = w.Write([]byte(`[{"path":"github.com/example/vuln","vulns":[{"id":"GO-2020-0001","modified":"2020-01-01T00:00:00Z","fixed":"1.2.3"}]}]`))
+		case "/ID/GO-2020-0001.json":
+			_, _ = w.Write([]byte(`{
+				"id":"GO-2020-0001",
+				"summary":"Authorization bypass in github.com/example/vuln",
+				"details":"A detailed description of the flaw.",
+				"aliases":["CVE-2020-0001"],
+				"affected":[{
+					"package":{"name":"github.com/example/vuln","ecosystem":"Go"},
+					"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"fixed":"1.2.3"}]}],
+					"ecosystem_specific":{"imports":[{"path":"github.com/example/vuln"}]}
+				}]
+			}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	res := run(t, srv.URL, "", "vulns", modulePath, "-o", "json")
+	require.Equal(t, 0, res.code, res.stderr)
+
+	var items []struct {
+		ID      string `json:"id"`
+		Summary string `json:"summary"`
+		Ranges  []struct {
+			Fixed string `json:"fixed"`
+		} `json:"ranges"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(res.stdout), &items))
+	require.Len(t, items, 1)
+	assert.Equal(t, "GO-2020-0001", items[0].ID)
+	assert.Equal(t, "Authorization bypass in github.com/example/vuln", items[0].Summary)
+	require.Len(t, items[0].Ranges, 1)
+	assert.Equal(t, "1.2.3", items[0].Ranges[0].Fixed)
 }
 
 func TestNotFound_FriendlyError(t *testing.T) {

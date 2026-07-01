@@ -192,7 +192,18 @@ func (d *Dispatcher) routeTopLevel(ctx context.Context, name, path string, a map
 	case "symbols":
 		return collectN(d.c.AllSymbols(ctx, path, opts...), limit)
 	case "vulns":
-		return collectN(d.c.AllVulns(ctx, path, opts...), limit)
+		// Vulns is not paginated (the whole vuln.go.dev database is fetched and
+		// scoped client-side); it honors WithLimit, already carried in opts. Unlike
+		// the AllX iterators there is no collectN, so normalize a nil result to an
+		// empty slice to keep the "(no results)" rendering parity.
+		vulns, err := d.c.Vulns(ctx, path, opts...)
+		if err != nil {
+			return nil, err
+		}
+		if vulns == nil {
+			vulns = []pkggodev.Vulnerability{}
+		}
+		return vulns, nil
 	default:
 		return nil, fmt.Errorf("unknown operation %q", name)
 	}
@@ -458,8 +469,8 @@ func (d *Dispatcher) overview(ctx context.Context, path string, opts []pkggodev.
 	} else {
 		slog.Debug("overview: versions lookup skipped", "module", modulePath, "err", e)
 	}
-	if page, e := d.c.Vulns(ctx, path); e == nil {
-		for _, v := range page.Items {
+	if vulns, e := d.c.Vulns(ctx, path); e == nil {
+		for _, v := range vulns {
 			ov.Vulnerabilities = append(ov.Vulnerabilities, v.ID)
 		}
 	} else {
