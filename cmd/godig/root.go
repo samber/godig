@@ -76,7 +76,7 @@ func init() {
 
 	pf := rootCmd.PersistentFlags()
 	pf.String("base-url", pkggodev.DefaultBaseURL, "pkg.go.dev API base URL")
-	pf.String("vuln-base-url", "https://vuln.go.dev", "Go vulnerability database base URL (used by 'vulns')")
+	pf.String("vuln-base-url", "https://vuln.go.dev", "Go vulnerability database base URL (used by 'vulns' and 'overview')")
 	pf.Duration("timeout", 30*time.Second, "HTTP request timeout")
 	pf.StringP("output", "o", "table", "output format: table|json|raw|md")
 	pf.String("log-level", "error", "log level: debug|info|warn|error|off (logs go to stderr)")
