@@ -3,7 +3,7 @@ module github.com/samber/godig
 go 1.25.5
 
 require (
-	github.com/mark3labs/mcp-go v0.55.0
+	github.com/mark3labs/mcp-go v0.55.1
 	github.com/ogen-go/ogen v1.22.0
 	github.com/samber/go-pkggodev-client v0.5.0
 	github.com/samber/hot v0.13.0
