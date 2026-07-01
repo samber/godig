@@ -36,6 +36,9 @@ func TestInvoke_EveryOperationRoutes(t *testing.T) {
 	c, err := pkggodev.New(
 		pkggodev.WithBaseURL(api.URL+"/v1beta"),
 		pkggodev.WithGoproxy(proxy.URL),
+		// vulns (and overview, which calls it) hit the vuln database directly;
+		// point it at the stub too so the test never reaches the network.
+		pkggodev.WithVulnBaseURL(api.URL),
 	)
 	require.NoError(t, err)
 	d := dispatch.New(c)

@@ -78,7 +78,8 @@ godig vulns github.com/samber/ro
 godig mcp
 ```
 
-Global flags: `-o, --output` (`table` default, `json`, `raw`, `md`), `--base-url`, `--timeout`,
+Global flags: `-o, --output` (`table` default, `json`, `raw`, `md`), `--base-url`,
+`--vuln-base-url` (Go vulnerability database, default `https://vuln.go.dev`), `--timeout`,
 `--log-level` (`debug|info|warn|error|off`, default `error`; logs go to **stderr**).
 All flags can also be set via `GODIG_`-prefixed environment variables.
 
@@ -120,7 +121,7 @@ actually needed, and cap long lists (`versions`, `imported-by`) with `--limit`.
 
 ## 🔎 Filters
 
-The `--filter` flag (on `search`, `versions`, `packages`, `imported-by`, `symbols`, `vulns`,
+The `--filter` flag (on `search`, `versions`, `packages`, `imported-by`, `symbols`,
 `major-versions`) takes a **Go boolean expression** evaluated server-side over each item. The
 identifiers are the item's fields — which **differ per command**, so a field valid for one list is
 not valid for another (e.g. `search` exposes `packagePath`, not `path`). Helper functions include
@@ -142,13 +143,11 @@ Available fields per command (string unless noted):
 | `packages`       | `path`, `name`, `synopsis`, `isRedistributable` (bool)                             |
 | `imported-by`    | `path` (the importing package path)                                                |
 | `symbols`        | `name`, `kind` (`Function`/`Method`/`Type`/`Variable`/`Constant`), `synopsis`, `parent` |
-| `vulns`          | `ID`, `package`, `Details`                                                         |
 | `major-versions` | `modulePath`, `major`, `version`, `isLatest` (bool)                                |
 
 > [!NOTE]
-> Identifiers follow the pkg.go.dev API's filter schema, and the casing is not uniform across
-> commands — most use the lowercase JSON field name, but `vulns` uses Go-style names (`ID`, not
-> `id`). `kind` values are capitalized (`Function`, not `func`). An unknown identifier is rejected
+> Identifiers follow the pkg.go.dev API's filter schema, using the lowercase JSON field name.
+> `kind` values are capitalized (`Function`, not `func`). An unknown identifier is rejected
 > by the API with `HTTP 400 undefined identifier: <name>`, which names the offending field.
 
 ## 📫 MCP server

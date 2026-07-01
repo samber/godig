@@ -76,6 +76,7 @@ func init() {
 
 	pf := rootCmd.PersistentFlags()
 	pf.String("base-url", pkggodev.DefaultBaseURL, "pkg.go.dev API base URL")
+	pf.String("vuln-base-url", "https://vuln.go.dev", "Go vulnerability database base URL (used by 'vulns' and 'overview')")
 	pf.Duration("timeout", 30*time.Second, "HTTP request timeout")
 	pf.StringP("output", "o", "table", "output format: table|json|raw|md")
 	pf.String("log-level", "error", "log level: debug|info|warn|error|off (logs go to stderr)")
@@ -85,6 +86,7 @@ func init() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 	_ = viper.BindPFlag("base-url", pf.Lookup("base-url"))
+	_ = viper.BindPFlag("vuln-base-url", pf.Lookup("vuln-base-url"))
 	_ = viper.BindPFlag("timeout", pf.Lookup("timeout"))
 	_ = viper.BindPFlag("output", pf.Lookup("output"))
 	_ = viper.BindPFlag("log-level", pf.Lookup("log-level"))
@@ -96,11 +98,13 @@ func outputFormat() string { return viper.GetString("output") }
 // newDispatcher builds a dispatcher backed by a configured pkg.go.dev client.
 func newDispatcher() (*dispatch.Dispatcher, error) {
 	baseURL := viper.GetString("base-url")
+	vulnBaseURL := viper.GetString("vuln-base-url")
 	timeout := viper.GetDuration("timeout")
-	slog.Debug("building pkg.go.dev client", "base_url", baseURL, "timeout", timeout)
+	slog.Debug("building pkg.go.dev client", "base_url", baseURL, "vuln_base_url", vulnBaseURL, "timeout", timeout)
 
 	c, err := pkggodev.New(
 		pkggodev.WithBaseURL(baseURL),
+		pkggodev.WithVulnBaseURL(vulnBaseURL),
 		pkggodev.WithHTTPClient(&http.Client{
 			Timeout:   timeout,
 			Transport: logging.Transport(nil),
