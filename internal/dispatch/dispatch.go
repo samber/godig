@@ -469,7 +469,7 @@ func (d *Dispatcher) overview(ctx context.Context, path string, opts []pkggodev.
 	} else {
 		slog.Debug("overview: versions lookup skipped", "module", modulePath, "err", e)
 	}
-	if vulns, e := d.c.Vulns(ctx, path); e == nil {
+	if vulns, e := d.c.Vulns(ctx, path, opts...); e == nil {
 		for _, v := range vulns {
 			ov.Vulnerabilities = append(ov.Vulnerabilities, v.ID)
 		}
